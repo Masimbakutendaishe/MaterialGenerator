@@ -1,0 +1,1 @@
+﻿# Organization model (tenant, branding)
