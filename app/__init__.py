@@ -33,7 +33,9 @@ def create_app(config_name=None):
     from app.api.organizations import organizations_bp
     from app.api.syllabus import syllabus_bp
     from app.api.materials import materials_bp
-
+    from app.api.admin import admin_bp
+    
+    app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(organizations_bp, url_prefix="/api/organizations")
     app.register_blueprint(syllabus_bp, url_prefix="/api/syllabus")
