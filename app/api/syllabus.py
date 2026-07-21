@@ -4,6 +4,9 @@ from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.extensions import db
 from app.models.syllabus import Syllabus
 from app.services.ai_service import generate_syllabus
+from app.services.syllabus_service import extract_text_from_upload
+from app.services.ai_service import structure_syllabus_from_text
+
 syllabus_bp = Blueprint("syllabus", __name__)
 
 
@@ -111,6 +114,56 @@ def create_syllabus_ai_generated():
         source="ai_generated",
         content=content,
         accreditation_info={"seta": data.get("seta"), "nqf_level": data.get("nqf_level")},
+    )
+    db.session.add(syllabus)
+    db.session.commit()
+
+    return jsonify({"id": syllabus.id, "title": syllabus.title, "status": syllabus.status, "content": content}), 201
+
+
+
+@syllabus_bp.route("/upload", methods=["POST"])
+@jwt_required()
+def create_syllabus_from_upload():
+    """Upload path: accepts a .docx/.pdf/.txt file, extracts text, and structures it via AI."""
+    claims = get_jwt()
+    org_id = claims.get("organization_id")
+    user_id = get_jwt_identity()
+
+    if not org_id:
+        return jsonify({"error": "This account is not attached to an organization"}), 403
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided. Send it as multipart/form-data under the key 'file'."}), 400
+
+    file_storage = request.files["file"]
+    if not file_storage.filename:
+        return jsonify({"error": "Empty filename"}), 400
+
+    title = request.form.get("title", file_storage.filename)
+    seta = request.form.get("seta")
+    nqf_level = request.form.get("nqf_level")
+
+    try:
+        raw_text = extract_text_from_upload(file_storage)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if not raw_text.strip():
+        return jsonify({"error": "No readable text found in the uploaded file"}), 422
+
+    try:
+        content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 502
+
+    syllabus = Syllabus(
+        organization_id=org_id,
+        created_by_user_id=user_id,
+        title=title,
+        source="uploaded",
+        content=content,
+        accreditation_info={"seta": seta, "nqf_level": nqf_level},
     )
     db.session.add(syllabus)
     db.session.commit()

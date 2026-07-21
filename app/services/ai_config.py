@@ -5,6 +5,7 @@ TASK_MODEL_MAP = {
     "syllabus_generation": {"provider": "groq", "model": "openai/gpt-oss-120b"},   # free tier for testing
     "textbook_writing":    {"provider": "anthropic", "model": "claude-sonnet-5"},
     "slide_content":       {"provider": "anthropic", "model": "claude-sonnet-5"},
+    "syllabus_structuring": {"provider": "groq", "model": "openai/gpt-oss-120b"},  # cheap, structures existing text
 }
 
 

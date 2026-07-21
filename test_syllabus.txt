@@ -1,0 +1,13 @@
+﻿Course: Basic Electrical Safety for Industrial Workers
+
+Module 1: Understanding Electrical Hazards
+By the end of this module, learners will be able to identify common electrical hazards in an industrial setting, explain the causes of electrical shock and burns, and recognize warning signs and safety labeling on equipment.
+
+Module 2: Personal Protective Equipment (PPE)
+Learners will be able to select appropriate PPE for electrical work, correctly inspect PPE before use, and understand the limitations of different PPE categories.
+
+Module 3: Safe Isolation Procedures
+Learners will be able to apply lockout-tagout (LOTO) procedures correctly, verify isolation using appropriate testing equipment, and understand the legal requirements for safe isolation in South African workplaces.
+
+Module 4: Emergency Response
+Learners will be able to respond appropriately to an electrical incident, administer basic first aid for electrical shock, and know when and how to escalate to emergency services.

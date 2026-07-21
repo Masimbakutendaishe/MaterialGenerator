@@ -69,3 +69,44 @@ Produce 4 to 8 units, each with 2 to 5 learning outcomes, appropriate for a work
         return json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+
+def structure_syllabus_from_text(raw_text: str, seta: str = None, nqf_level: str = None) -> dict:
+    """Takes raw extracted text from an uploaded document and restructures it into
+    the same {"units": [...]} shape used by the type-in and AI-generate paths."""
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    # Truncate very long documents to stay within a reasonable prompt size
+    truncated_text = raw_text[:12000]
+
+    prompt = f"""You are an instructional designer. Below is raw text extracted from an uploaded
+South African SETA/QCTO syllabus document. Restructure it into clean units and learning outcomes.
+
+{chr(10).join(context_lines)}
+
+Raw extracted text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "units": [
+    {{
+      "name": "Unit 1: <unit title>",
+      "outcomes": ["<learning outcome 1>", "<learning outcome 2>"]
+    }}
+  ]
+}}
+
+Preserve the original structure and wording as closely as possible — this is restructuring, not rewriting."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
+
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
