@@ -1,9 +1,8 @@
-﻿# App factory — create_app()
-"""Application factory — create_app() builds and configures the Flask app."""
+﻿"""Application factory — create_app() builds and configures the Flask app."""
 import os
 from flask import Flask
 from flask_talisman import Talisman
-
+from app import models  # noqa: F401 — ensures models are registered with SQLAlchemy
 from app.config import config_by_name
 from app.extensions import db, migrate, jwt, login_manager, limiter, celery_app
 
