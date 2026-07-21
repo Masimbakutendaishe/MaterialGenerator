@@ -10,7 +10,7 @@ from app.services.storage_service import upload_file
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
-    """Builds a textbook docx and uploads it to MinIO/S3, then updates the job status."""
+    """Builds a textbook docx (with real AI-written chapters) and uploads it to MinIO/S3."""
     job = GenerationJob.query.get(job_id)
     if not job:
         return
@@ -22,11 +22,14 @@ def generate_textbook_task(job_id: str):
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
         units = syllabus.content.get("units", [])
+        accreditation = syllabus.accreditation_info or {}
 
         buffer = build_textbook_docx(
             title=syllabus.title,
             units=units,
             organization_name=organization.name if organization else None,
+            seta=accreditation.get("seta"),
+            nqf_level=accreditation.get("nqf_level"),
         )
 
         storage_key = f"{job.organization_id}/{job.id}.docx"
@@ -36,7 +39,7 @@ def generate_textbook_task(job_id: str):
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
 
-        job.result_file_path = storage_key  # stores the S3/MinIO key, not a local disk path
+        job.result_file_path = storage_key
         job.status = "done"
         db.session.commit()
 
@@ -48,7 +51,7 @@ def generate_textbook_task(job_id: str):
 
 @celery_app.task(name="generate_presentation_task")
 def generate_presentation_task(job_id: str):
-    """Builds a presentation pptx and uploads it to MinIO/S3, then updates the job status."""
+    """Builds a presentation pptx (with AI-written bullets and speaker notes) and uploads it."""
     job = GenerationJob.query.get(job_id)
     if not job:
         return
@@ -60,12 +63,15 @@ def generate_presentation_task(job_id: str):
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
         units = syllabus.content.get("units", [])
+        accreditation = syllabus.accreditation_info or {}
 
         buffer = build_presentation_pptx(
             title=syllabus.title,
             units=units,
             organization_name=organization.name if organization else None,
             brand_colors=organization.brand_colors if organization else None,
+            seta=accreditation.get("seta"),
+            nqf_level=accreditation.get("nqf_level"),
         )
 
         storage_key = f"{job.organization_id}/{job.id}.pptx"

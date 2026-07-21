@@ -1,17 +1,15 @@
-﻿# Builds .docx from structured content
-"""Builds a .docx textbook from structured syllabus content."""
+﻿"""Builds a .docx textbook from structured syllabus content."""
 from io import BytesIO
 from docx import Document
-from docx.shared import Pt, Inches
+from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from app.services.ai_service import write_chapter_content
 
 
-def build_textbook_docx(title: str, units: list, organization_name: str = None) -> BytesIO:
-    """Takes syllabus units (list of {"name": ..., "outcomes": [...]}) and produces
-    a formatted .docx in memory. Returns a BytesIO ready to save or upload."""
+def build_textbook_docx(title: str, units: list, organization_name: str = None,
+                         seta: str = None, nqf_level: str = None) -> BytesIO:
     doc = Document()
 
-    # Title page
     title_para = doc.add_paragraph()
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_run = title_para.add_run(title)
@@ -26,26 +24,44 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None) 
 
     doc.add_page_break()
 
-    # Table of contents (simple text list — real TOC field can be added later)
     doc.add_heading("Table of Contents", level=1)
     for i, unit in enumerate(units, start=1):
         doc.add_paragraph(f"{i}. {unit.get('name', f'Unit {i}')}")
     doc.add_page_break()
 
-    # Chapters
     for i, unit in enumerate(units, start=1):
-        doc.add_heading(unit.get("name", f"Unit {i}"), level=1)
+        unit_name = unit.get("name", f"Unit {i}")
+        outcomes = unit.get("outcomes", [])
+
+        doc.add_heading(unit_name, level=1)
 
         doc.add_heading("Learning Outcomes", level=2)
-        for outcome in unit.get("outcomes", []):
+        for outcome in outcomes:
             doc.add_paragraph(outcome, style="List Bullet")
 
-        doc.add_heading("Content", level=2)
-        doc.add_paragraph(
-            "[Content for this unit will be expanded here — this is a structural draft "
-            "generated from the syllabus. Full explanatory text, examples, and exercises "
-            "are added in the next generation pass.]"
-        )
+        chapter = write_chapter_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level)
+
+        # Intro
+        if chapter.get("intro"):
+            doc.add_paragraph(chapter["intro"])
+
+        # Sections — real heading style per section, not just a paragraph
+        for section in chapter.get("sections", []):
+            heading = section.get("heading", "")
+            body = section.get("body", "")
+            if heading:
+                doc.add_heading(heading, level=3)
+            for para in body.split("\n\n"):
+                cleaned = para.strip()
+                if cleaned:
+                    doc.add_paragraph(cleaned)
+
+        # Key Points — real bullet list, real bold heading (not markdown asterisks)
+        key_points = chapter.get("key_points", [])
+        if key_points:
+            doc.add_heading("Key Points", level=2)
+            for point in key_points:
+                doc.add_paragraph(point, style="List Bullet")
 
         doc.add_page_break()
 

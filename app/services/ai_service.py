@@ -110,3 +110,89 @@ Preserve the original structure and wording as closely as possible — this is r
         return json.loads(raw_response)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+
+
+def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
+    """Writes full chapter content for one syllabus unit. Returns a structured dict
+    {"intro": str, "sections": [{"heading": str, "body": str}], "key_points": [str]}
+    so the document builder can format each part correctly instead of guessing from raw text."""
+    outcomes_text = "\n".join(f"- {o}" for o in outcomes)
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    prompt = f"""You are a subject-matter expert writing a technical chapter for a South African
+SETA/QCTO-accredited workplace training textbook.
+
+Chapter: {unit_name}
+{chr(10).join(context_lines)}
+
+Learning outcomes this chapter must cover:
+{outcomes_text}
+
+Write technically specific, textbook-quality content — not generic overview text. For each learning
+outcome, include where relevant: precise definitions, step-by-step procedures, specific standards or
+regulatory references (e.g. OHS Act, SANS standards, specific PPE classes/ratings), common mistakes or
+failure points workers make, and one detailed, realistic workplace scenario (not a one-line example —
+walk through what happens, what the worker does, and why). Assume the reader is a working adult who
+needs to actually apply this on the job, not just recognize the terminology.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "intro": "2-3 sentence introduction explaining why this chapter matters on the job",
+  "sections": [
+    {{
+      "heading": "<short section heading tied to one learning outcome>",
+      "body": "Full technical explanation, 150-250 words, following the guidance above. Plain text, no markdown."
+    }}
+  ],
+  "key_points": ["<concise takeaway 1>", "<concise takeaway 2>", "<concise takeaway 3>"]
+}}
+
+One section per learning outcome. Plain text only inside strings — no asterisks, no markdown headers."""
+
+    raw_response = _call_model("textbook_writing", prompt, max_tokens=3000)
+
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+
+def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
+    """Expands a syllabus unit into real slide content: a few genuinely useful bullets
+    per slide plus speaker notes, rather than just repeating the raw outcomes."""
+    outcomes_text = "\n".join(f"- {o}" for o in outcomes)
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    prompt = f"""You are creating a training slide for a South African SETA/QCTO-accredited
+workplace training presentation.
+
+Slide topic: {unit_name}
+{chr(10).join(context_lines)}
+
+This slide covers these learning outcomes:
+{outcomes_text}
+
+Write slide content: 3 to 5 short, punchy bullet points a facilitator would actually put on screen
+(not full sentences restating the outcomes — genuinely useful, specific takeaways: key facts, steps,
+warnings, or numbers). Then write speaker notes: 2-3 sentences the facilitator would say out loud to
+explain and expand on the bullets, including one concrete workplace example.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "bullets": ["<short bullet 1>", "<short bullet 2>", "<short bullet 3>"],
+  "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example."
+}}"""
+
+    raw_response = _call_model("slide_content", prompt, max_tokens=800)
+
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
