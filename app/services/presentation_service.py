@@ -1,12 +1,14 @@
 ﻿"""Builds a .pptx presentation from structured syllabus content."""
 from io import BytesIO
 from pptx import Presentation
+from pptx.util import Inches
 from pptx.dml.color import RGBColor
 from app.services.ai_service import generate_slide_content
 
 
 def build_presentation_pptx(title: str, units: list, organization_name: str = None,
-                             brand_colors: dict = None, seta: str = None, nqf_level: str = None) -> BytesIO:
+                             brand_colors: dict = None, seta: str = None, nqf_level: str = None,
+                             logo_bytes: bytes = None) -> BytesIO:
     prs = Presentation()
 
     primary_color = None
@@ -17,7 +19,6 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
         except (ValueError, KeyError):
             primary_color = None
 
-    # Title slide
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
     slide.shapes.title.text = title
@@ -26,14 +27,16 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
     if primary_color:
         slide.shapes.title.text_frame.paragraphs[0].runs[0].font.color.rgb = primary_color
 
-    # One slide per unit, now with AI-written bullets and speaker notes
+    if logo_bytes:
+        slide.shapes.add_picture(BytesIO(logo_bytes), Inches(8.2), Inches(0.3), height=Inches(1.0))
+
     bullet_layout = prs.slide_layouts[1]
     for unit in units:
         unit_name = unit.get("name", "Unit")
         outcomes = unit.get("outcomes", [])
 
         slide_content = generate_slide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level)
-        bullets = slide_content.get("bullets", outcomes)  # fall back to raw outcomes if AI call shape is odd
+        bullets = slide_content.get("bullets", outcomes)
 
         slide = prs.slides.add_slide(bullet_layout)
         slide.shapes.title.text = unit_name

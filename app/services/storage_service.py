@@ -48,3 +48,14 @@ def get_presigned_url(key: str, expires_in: int = 3600) -> str:
         Params={"Bucket": bucket, "Key": key},
         ExpiresIn=expires_in,
     )
+
+def download_file(key: str) -> bytes:
+    """Downloads a file's raw bytes from storage. Returns empty bytes if the key doesn't exist,
+    rather than raising — callers should treat a missing/failed logo as 'no logo', not a hard error."""
+    bucket = current_app.config.get("S3_BUCKET")
+    client = _client()
+    try:
+        response = client.get_object(Bucket=bucket, Key=key)
+        return response["Body"].read()
+    except ClientError:
+        return b""

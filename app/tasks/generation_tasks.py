@@ -5,12 +5,11 @@ from app.models.syllabus import Syllabus
 from app.models.organization import Organization
 from app.services.document_service import build_textbook_docx
 from app.services.presentation_service import build_presentation_pptx
-from app.services.storage_service import upload_file
+from app.services.storage_service import upload_file, download_file
 
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
-    """Builds a textbook docx (with real AI-written chapters) and uploads it to MinIO/S3."""
     job = GenerationJob.query.get(job_id)
     if not job:
         return
@@ -24,12 +23,18 @@ def generate_textbook_task(job_id: str):
         units = syllabus.content.get("units", [])
         accreditation = syllabus.accreditation_info or {}
 
+        logo_bytes = None
+        if organization and organization.logo_url:
+            logo_bytes = download_file(organization.logo_url) or None
+
         buffer = build_textbook_docx(
             title=syllabus.title,
             units=units,
             organization_name=organization.name if organization else None,
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),
+            logo_bytes=logo_bytes,
+            brand_colors=organization.brand_colors if organization else None,
         )
 
         storage_key = f"{job.organization_id}/{job.id}.docx"
@@ -51,7 +56,6 @@ def generate_textbook_task(job_id: str):
 
 @celery_app.task(name="generate_presentation_task")
 def generate_presentation_task(job_id: str):
-    """Builds a presentation pptx (with AI-written bullets and speaker notes) and uploads it."""
     job = GenerationJob.query.get(job_id)
     if not job:
         return
@@ -65,6 +69,10 @@ def generate_presentation_task(job_id: str):
         units = syllabus.content.get("units", [])
         accreditation = syllabus.accreditation_info or {}
 
+        logo_bytes = None
+        if organization and organization.logo_url:
+            logo_bytes = download_file(organization.logo_url) or None
+
         buffer = build_presentation_pptx(
             title=syllabus.title,
             units=units,
@@ -72,6 +80,7 @@ def generate_presentation_task(job_id: str):
             brand_colors=organization.brand_colors if organization else None,
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),
+            logo_bytes=logo_bytes,
         )
 
         storage_key = f"{job.organization_id}/{job.id}.pptx"

@@ -1,65 +1,211 @@
-﻿"""Builds a .docx textbook from structured syllabus content."""
+﻿"""Builds a .docx textbook from structured syllabus content, styled with organization branding."""
 from io import BytesIO
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from app.services.ai_service import write_chapter_content
+
+DEFAULT_PRIMARY = "1A5276"
+DEFAULT_SECONDARY = "2874A6"
+DEFAULT_ACCENT = "F39C12"
+
+
+def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
+    try:
+        return RGBColor.from_string((hex_str or fallback).lstrip("#").upper())
+    except (ValueError, TypeError):
+        return RGBColor.from_string(fallback)
+
+
+def _add_bottom_border(paragraph, color_hex: str, size: str = "18"):
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_borders = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), size)
+    bottom.set(qn("w:space"), "4")
+    bottom.set(qn("w:color"), color_hex.lstrip("#").upper())
+    p_borders.append(bottom)
+    p_pr.append(p_borders)
+
+
+def _shade_paragraph(paragraph, color_hex: str):
+    """Adds a background fill color behind a paragraph — used for the org-name band on the cover."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:color"), "auto")
+    shd.set(qn("w:fill"), color_hex.lstrip("#").upper())
+    p_pr.append(shd)
+
+
+def _add_page_border(section, color_hex: str):
+    """Adds a decorative border around the entire page — applies to the whole section (page)."""
+    sect_pr = section._sectPr
+    p_borders = OxmlElement("w:pgBorders")
+    p_borders.set(qn("w:offsetFrom"), "page")
+    for edge in ("top", "left", "bottom", "right"):
+        border = OxmlElement(f"w:{edge}")
+        border.set(qn("w:val"), "single")
+        border.set(qn("w:sz"), "24")
+        border.set(qn("w:space"), "24")
+        border.set(qn("w:color"), color_hex.lstrip("#").upper())
+        p_borders.append(border)
+    sect_pr.append(p_borders)
+
+
+def _set_default_font(doc: Document):
+    style = doc.styles["Normal"]
+    style.font.name = "Calibri"
+    style.font.size = Pt(11)
 
 
 def build_textbook_docx(title: str, units: list, organization_name: str = None,
-                         seta: str = None, nqf_level: str = None) -> BytesIO:
+                         seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
+                         brand_colors: dict = None) -> BytesIO:
+    brand_colors = brand_colors or {}
+    primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
+    secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
+
+    primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
+    secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
+    accent = _hex_to_rgb(accent_hex, DEFAULT_ACCENT)
+
     doc = Document()
+    _set_default_font(doc)
+
+    # Decorative border around the whole cover page
+    _add_page_border(doc.sections[0], primary_hex)
+
+    # Vertical spacing to center the cover content
+    for _ in range(4):
+        doc.add_paragraph()
+
+    if logo_bytes:
+        logo_para = doc.add_paragraph()
+        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = logo_para.add_run()
+        run.add_picture(BytesIO(logo_bytes), width=Inches(1.8))
+
+    doc.add_paragraph()
+
+    # Thin accent rule above the title
+    rule_above = doc.add_paragraph()
+    rule_above.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_bottom_border(rule_above, accent_hex, size="10")
 
     title_para = doc.add_paragraph()
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_run = title_para.add_run(title)
     title_run.bold = True
-    title_run.font.size = Pt(28)
+    title_run.font.size = Pt(32)
+    title_run.font.color.rgb = primary
+    title_run.font.name = "Calibri"
+
+    # Accent rule below the title
+    rule_below = doc.add_paragraph()
+    rule_below.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_bottom_border(rule_below, accent_hex, size="10")
+
+    doc.add_paragraph()
 
     if organization_name:
-        sub_para = doc.add_paragraph()
-        sub_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sub_run = sub_para.add_run(organization_name)
-        sub_run.font.size = Pt(14)
+        # Shaded band behind the org name for visual weight
+        org_para = doc.add_paragraph()
+        org_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        org_para.paragraph_format.space_before = Pt(6)
+        org_para.paragraph_format.space_after = Pt(6)
+        _shade_paragraph(org_para, primary_hex)
+        org_run = org_para.add_run(f"  {organization_name}  ")
+        org_run.font.size = Pt(16)
+        org_run.bold = True
+        org_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)  # white text on the colored band
+
+    doc.add_paragraph()
+    subtitle_para = doc.add_paragraph()
+    subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle_run = subtitle_para.add_run("Workplace Training Material")
+    subtitle_run.italic = True
+    subtitle_run.font.size = Pt(12)
+    subtitle_run.font.color.rgb = secondary
 
     doc.add_page_break()
 
-    doc.add_heading("Table of Contents", level=1)
+    # Table of contents
+    toc_heading = doc.add_paragraph()
+    toc_run = toc_heading.add_run("Table of Contents")
+    toc_run.bold = True
+    toc_run.font.size = Pt(20)
+    toc_run.font.color.rgb = primary
+    _add_bottom_border(toc_heading, primary_hex)
+
     for i, unit in enumerate(units, start=1):
-        doc.add_paragraph(f"{i}. {unit.get('name', f'Unit {i}')}")
+        p = doc.add_paragraph()
+        run = p.add_run(f"{i}.  {unit.get('name', f'Unit {i}')}")
+        run.font.size = Pt(12)
+        run.font.color.rgb = secondary
     doc.add_page_break()
 
     for i, unit in enumerate(units, start=1):
         unit_name = unit.get("name", f"Unit {i}")
         outcomes = unit.get("outcomes", [])
 
-        doc.add_heading(unit_name, level=1)
+        chapter_heading = doc.add_paragraph()
+        chapter_run = chapter_heading.add_run(unit_name)
+        chapter_run.bold = True
+        chapter_run.font.size = Pt(22)
+        chapter_run.font.color.rgb = primary
+        _add_bottom_border(chapter_heading, primary_hex)
+        doc.add_paragraph()
 
-        doc.add_heading("Learning Outcomes", level=2)
+        outcomes_heading = doc.add_paragraph()
+        outcomes_run = outcomes_heading.add_run("LEARNING OUTCOMES")
+        outcomes_run.bold = True
+        outcomes_run.underline = True
+        outcomes_run.font.size = Pt(13)
+        outcomes_run.font.color.rgb = accent
+
         for outcome in outcomes:
             doc.add_paragraph(outcome, style="List Bullet")
 
+        doc.add_paragraph()
+
         chapter = write_chapter_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level)
 
-        # Intro
         if chapter.get("intro"):
-            doc.add_paragraph(chapter["intro"])
+            intro_p = doc.add_paragraph()
+            intro_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            intro_run = intro_p.add_run(chapter["intro"])
+            intro_run.italic = True
+            intro_run.font.size = Pt(12)
 
-        # Sections — real heading style per section, not just a paragraph
         for section in chapter.get("sections", []):
             heading = section.get("heading", "")
             body = section.get("body", "")
             if heading:
-                doc.add_heading(heading, level=3)
+                section_heading = doc.add_paragraph()
+                section_run = section_heading.add_run(heading)
+                section_run.bold = True
+                section_run.font.size = Pt(15)
+                section_run.font.color.rgb = secondary
             for para in body.split("\n\n"):
                 cleaned = para.strip()
                 if cleaned:
-                    doc.add_paragraph(cleaned)
+                    body_p = doc.add_paragraph(cleaned)
+                    body_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                    body_p.paragraph_format.space_after = Pt(8)
 
-        # Key Points — real bullet list, real bold heading (not markdown asterisks)
         key_points = chapter.get("key_points", [])
         if key_points:
-            doc.add_heading("Key Points", level=2)
+            kp_heading = doc.add_paragraph()
+            kp_run = kp_heading.add_run("KEY POINTS")
+            kp_run.bold = True
+            kp_run.underline = True
+            kp_run.font.size = Pt(13)
+            kp_run.font.color.rgb = accent
             for point in key_points:
                 doc.add_paragraph(point, style="List Bullet")
 
