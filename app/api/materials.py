@@ -5,9 +5,28 @@ from app.extensions import db
 from app.models.syllabus import Syllabus
 from app.models.generation_job import GenerationJob
 from app.tasks.generation_tasks import generate_textbook_task
+from app.tasks.generation_tasks import generate_presentation_task
 
 materials_bp = Blueprint("materials", __name__)
 
+
+@materials_bp.route("/presentation/<syllabus_id>/generate", methods=["POST"])
+@jwt_required()
+def trigger_presentation_generation(syllabus_id):
+    claims = get_jwt()
+    org_id = claims.get("organization_id")
+
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=org_id).first()
+    if not syllabus:
+        return jsonify({"error": "Syllabus not found"}), 404
+
+    job = GenerationJob(organization_id=org_id, syllabus_id=syllabus_id, material_type="presentation")
+    db.session.add(job)
+    db.session.commit()
+
+    generate_presentation_task.delay(job.id)
+
+    return jsonify({"job_id": job.id, "status": job.status}), 202
 
 @materials_bp.route("/ping", methods=["GET"])
 def ping():
@@ -41,6 +60,7 @@ def get_job_status(job_id):
     claims = get_jwt()
     org_id = claims.get("organization_id")
 
+    db.session.expire_all()  # force a fresh read instead of a cached object
     job = GenerationJob.query.filter_by(id=job_id, organization_id=org_id).first()
     if not job:
         return jsonify({"error": "Job not found"}), 404
@@ -65,9 +85,16 @@ def download_job_result(job_id):
     if job.status != "done":
         return jsonify({"error": f"Job is not ready yet (status: {job.status})"}), 409
 
+    if job.material_type == "presentation":
+        mimetype = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        ext = "pptx"
+    else:
+        mimetype = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ext = "docx"
+
     return send_file(
         job.result_file_path,
         as_attachment=True,
-        download_name=f"textbook_{job.id}.docx",
-        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        download_name=f"{job.material_type}_{job.id}.{ext}",
+        mimetype=mimetype,
     )

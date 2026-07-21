@@ -5,8 +5,48 @@ from app.models.generation_job import GenerationJob
 from app.models.syllabus import Syllabus
 from app.models.organization import Organization
 from app.services.document_service import build_textbook_docx
+from app.services.presentation_service import build_presentation_pptx
 
 GENERATED_FILES_DIR = os.path.join(os.getcwd(), "instance", "generated")
+
+
+
+
+@celery_app.task(name="generate_presentation_task")
+def generate_presentation_task(job_id: str):
+    """Builds a presentation pptx for the given GenerationJob and updates its status."""
+    job = GenerationJob.query.get(job_id)
+    if not job:
+        return
+
+    job.status = "running"
+    db.session.commit()
+
+    try:
+        syllabus = Syllabus.query.get(job.syllabus_id)
+        organization = Organization.query.get(job.organization_id)
+        units = syllabus.content.get("units", [])
+
+        buffer = build_presentation_pptx(
+            title=syllabus.title,
+            units=units,
+            organization_name=organization.name if organization else None,
+            brand_colors=organization.brand_colors if organization else None,
+        )
+
+        os.makedirs(GENERATED_FILES_DIR, exist_ok=True)
+        file_path = os.path.join(GENERATED_FILES_DIR, f"{job.id}.pptx")
+        with open(file_path, "wb") as f:
+            f.write(buffer.getvalue())
+
+        job.result_file_path = file_path
+        job.status = "done"
+        db.session.commit()
+
+    except Exception as exc:
+        job.status = "failed"
+        job.error_message = str(exc)
+        db.session.commit()
 
 
 @celery_app.task(name="generate_textbook_task")
