@@ -1,1 +1,50 @@
 ﻿# S3/MinIO upload + presigned URL abstraction
+"""S3/MinIO abstraction — all file storage goes through here.
+Local dev uses MinIO (S3-compatible); swapping to real AWS S3 in production
+is just an env var change, no code change."""
+import boto3
+from botocore.exceptions import ClientError
+from botocore.client import Config
+from flask import current_app
+
+
+def _client():
+    return boto3.client(
+        "s3",
+        endpoint_url=current_app.config.get("S3_ENDPOINT_URL"),
+        aws_access_key_id=current_app.config.get("S3_ACCESS_KEY"),
+        aws_secret_access_key=current_app.config.get("S3_SECRET_KEY"),
+        config=Config(signature_version="s3v4"),
+        region_name="us-east-1",  # MinIO ignores this; required by boto3's client either way
+    )
+
+
+def ensure_bucket_exists():
+    """Creates the bucket if it doesn't exist yet. Safe to call repeatedly."""
+    bucket = current_app.config.get("S3_BUCKET")
+    client = _client()
+    try:
+        client.head_bucket(Bucket=bucket)
+    except ClientError:
+        client.create_bucket(Bucket=bucket)
+
+
+def upload_file(file_bytes: bytes, key: str, content_type: str) -> str:
+    """Uploads bytes to storage under the given key. Returns the key (not a URL —
+    use get_presigned_url separately, since URLs should be short-lived, not stored)."""
+    ensure_bucket_exists()
+    bucket = current_app.config.get("S3_BUCKET")
+    client = _client()
+    client.put_object(Bucket=bucket, Key=key, Body=file_bytes, ContentType=content_type)
+    return key
+
+
+def get_presigned_url(key: str, expires_in: int = 3600) -> str:
+    """Generates a temporary download URL for a stored file. Default expiry: 1 hour."""
+    bucket = current_app.config.get("S3_BUCKET")
+    client = _client()
+    return client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": key},
+        ExpiresIn=expires_in,
+    )
