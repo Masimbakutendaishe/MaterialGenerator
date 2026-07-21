@@ -6,6 +6,7 @@ from app.models.syllabus import Syllabus
 from app.models.generation_job import GenerationJob
 from app.tasks.generation_tasks import generate_textbook_task, generate_presentation_task
 from app.services.storage_service import get_presigned_url
+from app.models.review import MaterialReview
 
 materials_bp = Blueprint("materials", __name__)
 
@@ -77,7 +78,9 @@ def get_job_status(job_id):
 @materials_bp.route("/jobs/<job_id>/download", methods=["GET"])
 @jwt_required()
 def download_job_result(job_id):
-    """Redirects to a short-lived presigned URL pointing at the file in MinIO/S3."""
+    """Redirects to a short-lived presigned URL. If a review exists for this job,
+    download is blocked until it's approved. If no review exists, download is unrestricted
+    (review is opt-in per job via /reviews/submit, not mandatory for every generation)."""
     claims = get_jwt()
     org_id = claims.get("organization_id")
 
@@ -88,5 +91,9 @@ def download_job_result(job_id):
     if job.status != "done":
         return jsonify({"error": f"Job is not ready yet (status: {job.status})"}), 409
 
-    url = get_presigned_url(job.result_file_path, expires_in=300)  # 5-minute link
+    review = MaterialReview.query.filter_by(generation_job_id=job_id).first()
+    if review and review.status != "approved":
+        return jsonify({"error": f"This material is awaiting review (status: {review.status})"}), 403
+
+    url = get_presigned_url(job.result_file_path, expires_in=300)
     return redirect(url)
