@@ -5,10 +5,7 @@ from flask_talisman import Talisman
 from app import models  # noqa: F401 — ensures models are registered with SQLAlchemy
 from app.config import config_by_name
 from app.extensions import db, migrate, jwt, login_manager, limiter, celery_app
-"""Import all models here so Flask-Migrate can discover them."""
-from app.models.organization import Organization
-from app.models.user import User
-from app.models.syllabus import Syllabus
+
 
 def create_app(config_name=None):
     config_name = config_name or os.environ.get("FLASK_ENV", "development")
@@ -41,5 +38,13 @@ def create_app(config_name=None):
     app.register_blueprint(organizations_bp, url_prefix="/api/organizations")
     app.register_blueprint(syllabus_bp, url_prefix="/api/syllabus")
     app.register_blueprint(materials_bp, url_prefix="/api/materials")
+
+    # Bind Celery tasks to this app's context so db/config are available inside tasks
+    class ContextTask(celery_app.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery_app.Task = ContextTask
 
     return app
