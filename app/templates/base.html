@@ -42,6 +42,10 @@
             <a href="{{ url_for('branding_web.branding') }}" class="text-steel-300 hover:text-white transition">Branding</a>
             {% endif %}
 
+            {% if current_user.role in ('user', 'org_admin') %}
+            <a href="{{ url_for('generation_web.index') }}" class="text-steel-300 hover:text-white transition">Generate</a>
+            {% endif %}
+
             {% if current_user.role == 'qa_reviewer' %}
             <a href="{{ url_for('web.dashboard') }}" class="text-steel-300 hover:text-white transition">Reviews</a>
             {% endif %}

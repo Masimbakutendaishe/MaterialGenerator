@@ -23,7 +23,7 @@
         </thead>
         <tbody>
             {% for s in syllabi %}
-            <tr class="border-b border-steel-100 hover:bg-steel-50 transition">
+            <tr class="clickable-row border-b border-steel-100 hover:bg-steel-50 transition cursor-pointer" data-href="{{ url_for('syllabus_web.detail', syllabus_id=s.id) }}">
                 <td class="px-6 py-3 text-navy-950 font-medium">{{ s.title }}</td>
                 <td class="px-6 py-3 text-steel-500 capitalize">{{ s.source.replace('_', ' ') }}</td>
                 <td class="px-6 py-3 text-steel-500">{{ s.created_at.strftime('%Y-%m-%d') }}</td>
@@ -37,4 +37,12 @@
         </tbody>
     </table>
 </div>
+
+<script>
+    document.querySelectorAll('.clickable-row').forEach(row => {
+        row.addEventListener('click', () => {
+            window.location = row.dataset.href;
+        });
+    });
+</script>
 {% endblock %}

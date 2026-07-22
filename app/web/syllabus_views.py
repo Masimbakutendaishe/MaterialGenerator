@@ -131,3 +131,10 @@ def create_ai():
 
     flash(f"Syllabus '{topic}' generated.")
     return redirect(url_for("syllabus_web.list_syllabi"))
+
+
+@syllabus_web_bp.route("/<syllabus_id>")
+@login_required
+def detail(syllabus_id):
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first_or_404()
+    return render_template("syllabus/detail.html", syllabus=syllabus)

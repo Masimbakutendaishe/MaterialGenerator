@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Generate Materials{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <h1 class="text-xl font-semibold text-navy-950">Generate Materials</h1>
+    <p class="text-steel-500 mt-1 text-sm">Create textbooks and presentations from your syllabi</p>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 p-6 mb-8">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">New Generation</h2>
+    {% if syllabi %}
+    <form method="POST" action="{{ url_for('generation_web.trigger') }}" class="flex gap-4 items-end" onsubmit="showLoading('Starting generation...')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Syllabus</label>
+            <select name="syllabus_id" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                {% for s in syllabi %}
+                <option value="{{ s.id }}">{{ s.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="w-48">
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Type</label>
+            <select name="material_type" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                <option value="textbook">Textbook (Word)</option>
+                <option value="presentation">Presentation (PowerPoint)</option>
+            </select>
+        </div>
+        <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Generate</button>
+    </form>
+    <p class="text-steel-400 text-xs mt-3">Generation runs in the background — this can take up to a minute for a textbook with several units.</p>
+    {% else %}
+    <p class="text-steel-400 text-sm">You need a syllabus first. <a href="{{ url_for('syllabus_web.new') }}" class="text-signal hover:underline">Create one</a>.</p>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-steel-50 border-b border-steel-200">
+            <tr>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Type</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Status</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Created</th>
+                <th class="text-right px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr class="border-b border-steel-100" data-job-id="{{ job.id }}">
+                <td class="px-6 py-3 text-navy-950 font-medium capitalize">{{ job.material_type }}</td>
+                <td class="px-6 py-3">
+                    <span class="job-status text-xs font-medium
+                        {% if job.status == 'done' %}text-green-700
+                        {% elif job.status == 'failed' %}text-red-700
+                        {% else %}text-signal{% endif %}">
+                        {{ job.status }}
+                    </span>
+                </td>
+                <td class="px-6 py-3 text-steel-500">{{ job.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td class="px-6 py-3 text-right">
+                    {% if job.status == 'done' %}
+                        {% set review = job_reviews.get(job.id) %}
+                        {% if review %}
+                            <span class="text-xs font-medium
+                                {% if review.status == 'approved' %}text-green-700
+                                {% elif review.status == 'changes_requested' %}text-amber-700
+                                {% else %}text-signal{% endif %}">
+                                {{ review.status.replace('_', ' ') }}
+                            </span>
+                            {% if review.status == 'approved' %}
+                                <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline ml-3">Download</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline">Download</a>
+                            <form method="POST" action="{{ url_for('generation_web.submit_review', job_id=job.id) }}" class="inline ml-3">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="text-steel-500 font-medium hover:underline">Submit for Review</button>
+                            </form>
+                        {% endif %}
+                    {% elif job.status == 'failed' %}
+                        <span class="text-red-600 text-xs">{{ job.error_message or 'Generation failed' }}</span>
+                    {% else %}
+                        <span class="text-steel-400 text-xs">Processing...</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-6 py-8 text-center text-steel-400">No generations yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    function pollJobStatuses() {
+        document.querySelectorAll('tr[data-job-id]').forEach(row => {
+            const statusEl = row.querySelector('.job-status');
+            if (!statusEl || statusEl.textContent.trim() === 'done' || statusEl.textContent.trim() === 'failed') return;
+
+            const jobId = row.dataset.jobId;
+            fetch(`/generate/status/${jobId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status && data.status !== statusEl.textContent.trim()) {
+                        window.location.reload();
+                    }
+                });
+        });
+    }
+    setInterval(pollJobStatuses, 4000);
+</script>
+{% endblock %}

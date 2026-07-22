@@ -62,7 +62,9 @@ def create_app(config_name=None):
     from app.web.admin_views import web_admin_bp
     from app.web.syllabus_views import syllabus_web_bp
     from app.web.branding_views import branding_web_bp
+    from app.web.generation_views import generation_web_bp
     
+    app.register_blueprint(generation_web_bp)
     app.register_blueprint(branding_web_bp)
     app.register_blueprint(syllabus_web_bp)
     app.register_blueprint(web_admin_bp)
