@@ -14,15 +14,24 @@ generation_web_bp = Blueprint("generation_web", __name__, url_prefix="/generate"
 @generation_web_bp.route("/")
 @login_required
 def index():
+
+    from app.models.review import Notification
+    Notification.query.filter_by(recipient_user_id=current_user.id, is_read=False).filter(
+        Notification.link_job_id.isnot(None)
+    ).update({"is_read": True})
+    db.session.commit()
     syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).order_by(Syllabus.created_at.desc()).all()
     jobs = GenerationJob.query.filter_by(organization_id=current_user.organization_id).order_by(GenerationJob.created_at.desc()).limit(20).all()
 
     job_reviews = {}
+    job_syllabus_titles = {}
     for job in jobs:
         review = MaterialReview.query.filter_by(generation_job_id=job.id).first()
         job_reviews[job.id] = review
+        syllabus = Syllabus.query.get(job.syllabus_id)
+        job_syllabus_titles[job.id] = syllabus.title if syllabus else "Unknown"
 
-    return render_template("generate/index.html", syllabi=syllabi, jobs=jobs, job_reviews=job_reviews)
+    return render_template("generate/index.html", syllabi=syllabi, jobs=jobs, job_reviews=job_reviews, job_syllabus_titles=job_syllabus_titles)
 
 
 @generation_web_bp.route("/trigger", methods=["POST"])
@@ -40,16 +49,44 @@ def trigger():
         organization_id=current_user.organization_id,
         syllabus_id=syllabus_id,
         material_type=material_type,
+        triggered_by_user_id=current_user.id,
     )
     db.session.add(job)
     db.session.commit()
 
     if material_type == "textbook":
-        generate_textbook_task.delay(job.id)
+        async_result = generate_textbook_task.delay(job.id)
     else:
-        generate_presentation_task.delay(job.id)
+        async_result = generate_presentation_task.delay(job.id)
+
+    job.task_id = async_result.id
+    db.session.commit()
 
     flash(f"Generating {material_type} for '{syllabus.title}'...")
+    return redirect(url_for("generation_web.index"))
+
+
+@generation_web_bp.route("/cancel/<job_id>", methods=["POST"])
+@login_required
+def cancel(job_id):
+    from app.extensions import celery_app
+
+    job = GenerationJob.query.filter_by(id=job_id, organization_id=current_user.organization_id).first()
+    if not job:
+        flash("Job not found.")
+        return redirect(url_for("generation_web.index"))
+
+    if job.status in ("done", "failed", "cancelled"):
+        flash("This job can no longer be cancelled.")
+        return redirect(url_for("generation_web.index"))
+
+    if job.task_id:
+        celery_app.control.revoke(job.task_id, terminate=True)
+
+    job.status = "cancelled"
+    db.session.commit()
+
+    flash("Generation cancelled.")
     return redirect(url_for("generation_web.index"))
 
 
@@ -116,3 +153,17 @@ def submit_review(job_id):
 
     flash("Submitted for review.")
     return redirect(url_for("generation_web.index"))
+
+@generation_web_bp.route("/row/<job_id>")
+@login_required
+def row_partial(job_id):
+    """Renders a single job row — used for in-place status updates without a full page reload."""
+    job = GenerationJob.query.filter_by(id=job_id, organization_id=current_user.organization_id).first_or_404()
+    syllabus = Syllabus.query.get(job.syllabus_id)
+    review = MaterialReview.query.filter_by(generation_job_id=job.id).first()
+    return render_template(
+        "generate/_job_row.html",
+        job=job,
+        syllabus_title=syllabus.title if syllabus else "Unknown",
+        review=review,
+    )

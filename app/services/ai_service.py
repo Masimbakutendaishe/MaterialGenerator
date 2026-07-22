@@ -1,42 +1,60 @@
 ﻿"""Wraps all AI provider calls. Nothing else in the app should import anthropic/groq/etc
 directly — this is the one place provider SDKs are touched."""
 import json
+import time
 from flask import current_app
 from anthropic import Anthropic
 from groq import Groq
 from app.services.ai_config import get_model_for_task
 
 
-def _call_model(task: str, prompt: str, max_tokens: int = 2000) -> str:
+
+def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 5) -> str:
+    """Routes a prompt to whichever provider/model is configured for this task.
+    Retries automatically on rate limits (common on free tiers), with backoff."""
     routing = get_model_for_task(task)
     provider = routing["provider"]
     model = routing["model"]
 
-    if provider == "anthropic":
-        api_key = current_app.config.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise RuntimeError("ANTHROPIC_API_KEY is not configured")
-        client = Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return "".join(block.text for block in response.content if block.type == "text")
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            if provider == "anthropic":
+                api_key = current_app.config.get("ANTHROPIC_API_KEY")
+                if not api_key:
+                    raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+                client = Anthropic(api_key=api_key)
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return "".join(block.text for block in response.content if block.type == "text")
 
-    if provider == "groq":
-        api_key = current_app.config.get("GROQ_API_KEY")
-        if not api_key:
-            raise RuntimeError("GROQ_API_KEY is not configured")
-        client = Groq(api_key=api_key)
-        response = client.chat.completions.create(
-            model=model,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.choices[0].message.content
+            if provider == "groq":
+                api_key = current_app.config.get("GROQ_API_KEY")
+                if not api_key:
+                    raise RuntimeError("GROQ_API_KEY is not configured")
+                client = Groq(api_key=api_key)
+                response = client.chat.completions.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.choices[0].message.content
 
-    raise ValueError(f"Unknown provider '{provider}'")
+            raise ValueError(f"Unknown provider '{provider}'")
+
+        except Exception as exc:
+            last_error = exc
+            error_str = str(exc)
+            if "rate_limit" in error_str or "429" in error_str:
+                wait_time = min(10 * (attempt + 1), 60)  # back off progressively, cap at 60s
+                time.sleep(wait_time)
+                continue
+            raise  # non-rate-limit errors fail immediately, no point retrying
+
+    raise RuntimeError(f"AI call failed after {max_retries} retries (rate limited): {last_error}")
 
 
 def generate_syllabus(topic: str, seta: str = None, nqf_level: str = None) -> dict:
@@ -153,12 +171,14 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 
 One section per learning outcome. Plain text only inside strings — no asterisks, no markdown headers."""
 
-    raw_response = _call_model("textbook_writing", prompt, max_tokens=3000)
-
-    try:
-        return json.loads(raw_response)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+    for attempt in range(2):  # try once, retry once more if JSON parsing fails
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=4500)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError as exc:
+            if attempt == 1:
+                raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+            continue
 
 def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
     """Expands a syllabus unit into real slide content: a few genuinely useful bullets

@@ -15,10 +15,15 @@ class GenerationJob(db.Model):
     material_type = db.Column(db.String(50), nullable=False)  # "textbook" | "presentation"
     status = db.Column(db.String(50), nullable=False, default="queued")  # "queued" | "running" | "done" | "failed"
     result_file_path = db.Column(db.String(500), nullable=True)  # local path for now, S3 URL later
+
+    
     error_message = db.Column(db.Text, nullable=True)
+    
 
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    task_id = db.Column(db.String(255), nullable=True)  # Celery task ID, needed to revoke/cancel
+    triggered_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
 
     def __repr__(self):
         return f"<GenerationJob {self.id} {self.material_type} {self.status}>"

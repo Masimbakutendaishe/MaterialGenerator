@@ -7,7 +7,6 @@ from app.config import config_by_name
 from app.extensions import db, migrate, jwt, login_manager, limiter, celery_app
 
 
-
 def create_app(config_name=None):
     config_name = config_name or os.environ.get("FLASK_ENV", "development")
     app = Flask(__name__)
@@ -18,17 +17,17 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     login_manager.init_app(app)
+
     from app.models.user import User
 
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(user_id)
+
     limiter.init_app(app)
 
     from app.extensions import csrf
     csrf.init_app(app)
-
-    
 
     # Talisman: security headers (HTTPS enforcement, CSP) — relaxed in dev, strict in prod
     csp = {
@@ -51,7 +50,7 @@ def create_app(config_name=None):
         result_backend=app.config["CELERY_RESULT_BACKEND"],
     )
 
-    # Blueprints — registered here as each api/ module is built
+    # Blueprints — registered here as each api/ or web/ module is built
     from app.api.auth import auth_bp
     from app.api.organizations import organizations_bp
     from app.api.syllabus import syllabus_bp
@@ -63,7 +62,9 @@ def create_app(config_name=None):
     from app.web.syllabus_views import syllabus_web_bp
     from app.web.branding_views import branding_web_bp
     from app.web.generation_views import generation_web_bp
-    
+    from app.web.review_views import review_web_bp
+
+    app.register_blueprint(review_web_bp)
     app.register_blueprint(generation_web_bp)
     app.register_blueprint(branding_web_bp)
     app.register_blueprint(syllabus_web_bp)

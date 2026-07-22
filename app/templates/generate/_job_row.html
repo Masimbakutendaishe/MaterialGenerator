@@ -1,0 +1,46 @@
+<tr class="border-b border-steel-100" data-job-id="{{ job.id }}">
+    <td class="px-6 py-3 text-navy-950 font-medium">{{ syllabus_title }}</td>
+    <td class="px-6 py-3 text-steel-500 capitalize">{{ job.material_type }}</td>
+    <td class="px-6 py-3">
+        <span class="job-status-label inline-flex items-center gap-1.5 text-xs font-medium
+            {% if job.status == 'done' %}text-green-700
+            {% elif job.status in ('failed', 'cancelled') %}text-red-700
+            {% else %}text-signal{% endif %}" data-status="{{ job.status }}">
+            {% if job.status in ('queued', 'running') %}
+            <span class="inline-block w-3 h-3 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
+            {% endif %}
+            {{ job.status }}
+        </span>
+    </td>
+    <td class="px-6 py-3 text-steel-500">{{ job.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td class="px-6 py-3 text-right job-actions">
+        {% if job.status == 'done' %}
+            {% if review %}
+                <span class="text-xs font-medium
+                    {% if review.status == 'approved' %}text-green-700
+                    {% elif review.status == 'changes_requested' %}text-amber-700
+                    {% else %}text-signal{% endif %}">
+                    {{ review.status.replace('_', ' ') }}
+                </span>
+                {% if review.status == 'approved' %}
+                    <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline ml-3">Download</a>
+                {% endif %}
+            {% else %}
+                <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline">Download</a>
+                <form method="POST" action="{{ url_for('generation_web.submit_review', job_id=job.id) }}" class="inline ml-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="text-steel-500 font-medium hover:underline">Submit for Review</button>
+                </form>
+            {% endif %}
+        {% elif job.status in ('queued', 'running') %}
+            <form method="POST" action="{{ url_for('generation_web.cancel', job_id=job.id) }}" class="inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="text-red-600 font-medium hover:underline text-xs">Cancel</button>
+            </form>
+        {% elif job.status == 'cancelled' %}
+            <span class="text-steel-400 text-xs">Cancelled</span>
+        {% else %}
+            <span class="text-steel-400 text-xs">—</span>
+        {% endif %}
+    </td>
+</tr>

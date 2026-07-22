@@ -22,6 +22,16 @@
         </div>
     </div>
 
+    <div class="mt-5 pt-5 border-t border-steel-100">
+        {% if material_url %}
+        <a href="{{ material_url }}" target="_blank" class="inline-flex items-center gap-2 bg-steel-50 border border-steel-200 text-navy-950 px-4 py-2 rounded text-sm font-medium hover:bg-steel-100 transition">
+            📄 View / Download Material to Review
+        </a>
+        {% else %}
+        <p class="text-steel-400 text-sm">Material file not available.</p>
+        {% endif %}
+    </div>
+
     {% if current_user.role == 'qa_reviewer' and review.status != 'approved' %}
     <div class="flex gap-3 mt-5 pt-5 border-t border-steel-100">
         <form method="POST" action="{{ url_for('review_web.submit_decision', review_id=review.id) }}">

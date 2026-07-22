@@ -51,6 +51,7 @@ class Notification(db.Model):
     link_review_id = db.Column(db.String(36), db.ForeignKey("material_reviews.id"), nullable=True)
     is_read = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    link_job_id = db.Column(db.String(36), db.ForeignKey("generation_jobs.id"), nullable=True)
 
     def __repr__(self):
         return f"<Notification {self.id} read={self.is_read}>"

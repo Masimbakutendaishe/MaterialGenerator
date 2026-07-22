@@ -6,7 +6,7 @@ from app.models.organization import Organization
 from app.services.document_service import build_textbook_docx
 from app.services.presentation_service import build_presentation_pptx
 from app.services.storage_service import upload_file, download_file
-
+from app.models.review import Notification
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -45,7 +45,14 @@ def generate_textbook_task(job_id: str):
         )
 
         job.result_file_path = storage_key
+        
         job.status = "done"
+        if job.triggered_by_user_id:
+            db.session.add(Notification(
+                recipient_user_id=job.triggered_by_user_id,
+                message=f'Your {job.material_type} "{syllabus.title}" is ready to download.',
+                link_job_id=job.id,
+            ))
         db.session.commit()
 
     except Exception as exc:
@@ -92,6 +99,11 @@ def generate_presentation_task(job_id: str):
 
         job.result_file_path = storage_key
         job.status = "done"
+        if job.triggered_by_user_id:
+            db.session.add(Notification(
+                recipient_user_id=job.triggered_by_user_id,
+                message=f"Your {job.material_type} is ready to download.",
+            ))
         db.session.commit()
 
     except Exception as exc:

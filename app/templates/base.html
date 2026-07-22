@@ -23,7 +23,6 @@
 </head>
 <body class="bg-steel-50 min-h-screen font-sans">
     {% if current_user.is_authenticated %}
-    {% if current_user.is_authenticated %}
     <nav class="bg-navy-950 text-steel-100 px-8 py-4 flex justify-between items-center border-b border-navy-700">
         <div class="flex items-center gap-3">
             <div class="w-8 h-8 bg-navy-800 border border-navy-600 rounded flex items-center justify-center text-steel-200 font-semibold text-sm">S</div>
@@ -36,35 +35,80 @@
 
             {% if current_user.role in ('user', 'org_admin') %}
             <a href="{{ url_for('syllabus_web.list_syllabi') }}" class="text-steel-300 hover:text-white transition">Syllabi</a>
-            {% endif %}
-
-            {% if current_user.role in ('user', 'org_admin') %}
+            <a href="{{ url_for('generation_web.index') }}" class="text-steel-300 hover:text-white transition">Generate</a>
             <a href="{{ url_for('branding_web.branding') }}" class="text-steel-300 hover:text-white transition">Branding</a>
             {% endif %}
 
-            {% if current_user.role in ('user', 'org_admin') %}
-            <a href="{{ url_for('generation_web.index') }}" class="text-steel-300 hover:text-white transition">Generate</a>
-            {% endif %}
-
-            {% if current_user.role == 'qa_reviewer' %}
-            <a href="{{ url_for('web.dashboard') }}" class="text-steel-300 hover:text-white transition">Reviews</a>
+            {% if current_user.role in ('qa_reviewer', 'user', 'org_admin') %}
+            <a href="{{ url_for('review_web.list_reviews') }}" class="text-steel-300 hover:text-white transition">Reviews</a>
             {% endif %}
 
             {% if current_user.role == 'superadmin' %}
             <a href="{{ url_for('web_admin.organizations') }}" class="text-steel-300 hover:text-white transition">Admin</a>
             {% endif %}
 
+            <div class="relative">
+                <button onclick="toggleNotifications()" class="relative text-steel-300 hover:text-white transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span id="notif-badge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">0</span>
+                </button>
+                <div id="notif-dropdown" class="hidden absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white rounded-lg border border-steel-200 shadow-xl z-50"></div>
+            </div>
+
             <a href="{{ url_for('web.logout') }}" class="text-steel-300 hover:text-white transition">Logout</a>
         </div>
     </nav>
-    {% endif %}
+
+    <script>
+        function updateNotifBadge() {
+            fetch("{{ url_for('review_web.notification_count') }}")
+                .then(r => r.json())
+                .then(data => {
+                    const badge = document.getElementById('notif-badge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                });
+        }
+
+        function toggleNotifications() {
+            const dropdown = document.getElementById('notif-dropdown');
+            if (dropdown.classList.contains('hidden')) {
+                fetch("{{ url_for('review_web.notifications_dropdown') }}")
+                    .then(r => r.text())
+                    .then(html => { dropdown.innerHTML = html; });
+                dropdown.classList.remove('hidden');
+            } else {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        function markAllNotificationsRead() {
+            fetch("{{ url_for('review_web.mark_all_read') }}", {
+                method: "POST",
+                headers: { "X-CSRFToken": "{{ csrf_token() }}" }
+            }).then(() => {
+                updateNotifBadge();
+                toggleNotifications();
+                toggleNotifications();
+            });
+        }
+
+        updateNotifBadge();
+        setInterval(updateNotifBadge, 15000);
+    </script>
     {% endif %}
 
     <main class="max-w-6xl mx-auto p-8">
         {% with messages = get_flashed_messages() %}
             {% if messages %}
                 {% for message in messages %}
-                    <div class="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6">{{ message }}</div>
+                    <div class="flash-message bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6">{{ message }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
@@ -84,6 +128,36 @@
         function showLoading(message) {
             document.getElementById('loading-message').textContent = message || 'Working on it...';
             document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+    </script>
+<script>
+        setTimeout(() => {
+            document.querySelectorAll('.flash-message').forEach(el => el.remove());
+        }, 5000);
+    </script>
+<script>
+        document.addEventListener('submit', (e) => {
+            const btn = e.target.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                setTimeout(() => { btn.disabled = false; }, 3000);
+            }
+        });
+    </script>
+<script>
+        function togglePasswordVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const eyeOpen = document.getElementById(iconId + '-open');
+            const eyeClosed = document.getElementById(iconId + '-closed');
+            if (input.type === 'password') {
+                input.type = 'text';
+                eyeOpen.classList.add('hidden');
+                eyeClosed.classList.remove('hidden');
+            } else {
+                input.type = 'password';
+                eyeOpen.classList.remove('hidden');
+                eyeClosed.classList.add('hidden');
+            }
         }
     </script>
 </body>
