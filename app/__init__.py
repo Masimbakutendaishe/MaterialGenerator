@@ -7,6 +7,7 @@ from app.config import config_by_name
 from app.extensions import db, migrate, jwt, login_manager, limiter, celery_app
 
 
+
 def create_app(config_name=None):
     config_name = config_name or os.environ.get("FLASK_ENV", "development")
     app = Flask(__name__)
@@ -17,10 +18,32 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     login_manager.init_app(app)
+    from app.models.user import User
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(user_id)
     limiter.init_app(app)
 
+    from app.extensions import csrf
+    csrf.init_app(app)
+
+    
+
     # Talisman: security headers (HTTPS enforcement, CSP) — relaxed in dev, strict in prod
-    Talisman(app, force_https=(config_name == "production"))
+    csp = {
+        'default-src': "'self'",
+        'script-src': [
+            "'self'",
+            "'unsafe-inline'",  # needed for the small inline Tailwind config script
+            "https://cdn.tailwindcss.com",
+            "https://cdnjs.cloudflare.com",
+        ],
+        'style-src': ["'self'", "'unsafe-inline'"],  # Tailwind injects styles inline
+        'font-src': ["'self'", "data:"],
+        'img-src': ["'self'", "data:", "blob:", "http://localhost:9000", "http://127.0.0.1:9000"],
+    }
+    Talisman(app, force_https=(config_name == "production"), content_security_policy=csp)
 
     # Celery config (tasks run via celery_worker.py, sharing this app's config)
     celery_app.conf.update(
@@ -35,7 +58,15 @@ def create_app(config_name=None):
     from app.api.materials import materials_bp
     from app.api.admin import admin_bp
     from app.api.reviews import reviews_bp
+    from app.web.views import web_bp
+    from app.web.admin_views import web_admin_bp
+    from app.web.syllabus_views import syllabus_web_bp
+    from app.web.branding_views import branding_web_bp
     
+    app.register_blueprint(branding_web_bp)
+    app.register_blueprint(syllabus_web_bp)
+    app.register_blueprint(web_admin_bp)
+    app.register_blueprint(web_bp)
     app.register_blueprint(reviews_bp, url_prefix="/api/reviews")
     app.register_blueprint(admin_bp, url_prefix="/api/admin")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")

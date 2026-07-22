@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Syllabi{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200 flex justify-between items-center">
+    <div>
+        <h1 class="text-xl font-semibold text-navy-950">Syllabi</h1>
+        <p class="text-steel-500 mt-1 text-sm">Course content ready for material generation</p>
+    </div>
+    <a href="{{ url_for('syllabus_web.new') }}" class="bg-navy-950 text-white px-5 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">
+        + New Syllabus
+    </a>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-steel-50 border-b border-steel-200">
+            <tr>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Title</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Source</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Created</th>
+                <th class="text-right px-6 py-3"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in syllabi %}
+            <tr class="border-b border-steel-100 hover:bg-steel-50 transition">
+                <td class="px-6 py-3 text-navy-950 font-medium">{{ s.title }}</td>
+                <td class="px-6 py-3 text-steel-500 capitalize">{{ s.source.replace('_', ' ') }}</td>
+                <td class="px-6 py-3 text-steel-500">{{ s.created_at.strftime('%Y-%m-%d') }}</td>
+                <td class="px-6 py-3 text-right">
+                    <span class="text-signal text-xs font-medium">{{ s.content.get('units', [])|length }} units</span>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-6 py-8 text-center text-steel-400">No syllabi yet — create one to get started.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

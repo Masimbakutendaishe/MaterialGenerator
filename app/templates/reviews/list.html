@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Reviews{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <h1 class="text-xl font-semibold text-navy-950">
+        {{ 'Review Queue' if current_user.role == 'qa_reviewer' else 'My Submissions' }}
+    </h1>
+    <p class="text-steel-500 mt-1 text-sm">
+        {{ 'Materials waiting on your feedback' if current_user.role == 'qa_reviewer' else 'Materials you have submitted for review' }}
+    </p>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-steel-50 border-b border-steel-200">
+            <tr>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Material</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Type</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Status</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Submitted</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="clickable-row border-b border-steel-100 hover:bg-steel-50 transition cursor-pointer"
+                data-href="{{ url_for('review_web.review_detail', review_id=item.review.id) }}">
+                <td class="px-6 py-3 text-navy-950 font-medium">{{ item.syllabus_title }}</td>
+                <td class="px-6 py-3 text-steel-500 capitalize">{{ item.job.material_type if item.job else '—' }}</td>
+                <td class="px-6 py-3">
+                    {% if item.review.status == 'approved' %}
+                        <span class="text-green-700 text-xs font-medium">Approved</span>
+                    {% elif item.review.status == 'changes_requested' %}
+                        <span class="text-amber-700 text-xs font-medium">Changes Requested</span>
+                    {% else %}
+                        <span class="text-signal text-xs font-medium">Pending Review</span>
+                    {% endif %}
+                </td>
+                <td class="px-6 py-3 text-steel-500">{{ item.review.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-6 py-8 text-center text-steel-400">Nothing here yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.querySelectorAll('.clickable-row').forEach(row => {
+        row.addEventListener('click', () => {
+            window.location = row.dataset.href;
+        });
+    });
+</script>
+{% endblock %}

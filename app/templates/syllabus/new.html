@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}New Syllabus{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <a href="{{ url_for('syllabus_web.list_syllabi') }}" class="text-signal text-sm hover:underline">&larr; Syllabi</a>
+    <h1 class="text-xl font-semibold text-navy-950 mt-1">New Syllabus</h1>
+    <p class="text-steel-500 mt-1 text-sm">Choose how you want to create it</p>
+</div>
+
+<div class="flex gap-2 mb-6">
+    <button onclick="showTab('ai')" id="tab-ai" class="tab-btn px-4 py-2 rounded text-sm font-medium bg-navy-950 text-white">AI Generate</button>
+    <button onclick="showTab('typed')" id="tab-typed" class="tab-btn px-4 py-2 rounded text-sm font-medium bg-white border border-steel-200 text-steel-500">Type It In</button>
+    <button onclick="showTab('upload')" id="tab-upload" class="tab-btn px-4 py-2 rounded text-sm font-medium bg-white border border-steel-200 text-steel-500">Upload File</button>
+</div>
+
+<!-- AI Generate -->
+<div id="panel-ai" class="bg-white rounded-lg border border-steel-200 p-6">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Generate from Course Title</h2>
+    <form method="POST" action="{{ url_for('syllabus_web.create_ai') }}" class="space-y-4" onsubmit="showLoading('Generating your syllabus with AI...')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Course Title / Topic</label>
+            <input type="text" name="topic" required placeholder="e.g. Basic Fire Safety in the Workplace"
+                class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        </div>
+        <div class="flex gap-4">
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA</label>
+                <input type="text" name="seta" placeholder="e.g. MERSETA" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+            </div>
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">NQF Level</label>
+                <input type="text" name="nqf_level" placeholder="e.g. 3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+            </div>
+        </div>
+        <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Generate Syllabus</button>
+        <p class="text-steel-400 text-xs">This calls the AI to generate units and learning outcomes — may take a few seconds.</p>
+    </form>
+</div>
+
+<!-- Type It In -->
+<div id="panel-typed" class="hidden bg-white rounded-lg border border-steel-200 p-6">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Type In Manually</h2>
+    <form method="POST" action="{{ url_for('syllabus_web.create_typed') }}" class="space-y-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Syllabus Title</label>
+            <input type="text" name="title" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        </div>
+
+        <div id="units-container" class="space-y-4">
+            <div class="border border-steel-200 rounded p-4">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Unit Name</label>
+                <input type="text" name="unit_name[]" placeholder="e.g. Unit 1: Introduction" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 mb-3 focus:outline-none focus:ring-2 focus:ring-signal">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Learning Outcomes (one per line)</label>
+                <textarea name="unit_outcomes[]" rows="3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal"></textarea>
+            </div>
+        </div>
+
+        <button type="button" onclick="addUnit()" class="text-signal text-sm font-medium hover:underline">+ Add Another Unit</button>
+        <div>
+            <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Create Syllabus</button>
+        </div>
+    </form>
+</div>
+
+<!-- Upload -->
+<div id="panel-upload" class="hidden bg-white rounded-lg border border-steel-200 p-6">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Upload Document</h2>
+    <form method="POST" action="{{ url_for('syllabus_web.create_upload') }}" enctype="multipart/form-data" class="space-y-4" onsubmit="showLoading('Extracting and structuring your document...')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">File (.docx, .pdf, or .txt)</label>
+            <input type="file" name="file" required accept=".docx,.pdf,.txt" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Title (optional — defaults to filename)</label>
+            <input type="text" name="title" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        </div>
+        <div class="flex gap-4">
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA</label>
+                <input type="text" name="seta" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+            </div>
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">NQF Level</label>
+                <input type="text" name="nqf_level" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+            </div>
+        </div>
+        <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Upload & Structure</button>
+        <p class="text-steel-400 text-xs">The AI will extract and restructure the content — may take a few seconds.</p>
+    </form>
+</div>
+
+<script>
+function showTab(name) {
+    ['ai', 'typed', 'upload'].forEach(t => {
+        document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
+        const btn = document.getElementById('tab-' + t);
+        if (t === name) {
+            btn.classList.add('bg-navy-950', 'text-white');
+            btn.classList.remove('bg-white', 'border', 'border-steel-200', 'text-steel-500');
+        } else {
+            btn.classList.remove('bg-navy-950', 'text-white');
+            btn.classList.add('bg-white', 'border', 'border-steel-200', 'text-steel-500');
+        }
+    });
+}
+
+function addUnit() {
+    const container = document.getElementById('units-container');
+    const div = document.createElement('div');
+    div.className = 'border border-steel-200 rounded p-4';
+    div.innerHTML = `
+        <label class="block text-sm font-medium text-steel-500 mb-1.5">Unit Name</label>
+        <input type="text" name="unit_name[]" placeholder="e.g. Unit 2: ..." class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 mb-3 focus:outline-none focus:ring-2 focus:ring-signal">
+        <label class="block text-sm font-medium text-steel-500 mb-1.5">Learning Outcomes (one per line)</label>
+        <textarea name="unit_outcomes[]" rows="3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal"></textarea>
+    `;
+    container.appendChild(div);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Review{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <a href="{{ url_for('review_web.list_reviews') }}" class="text-signal text-sm hover:underline">&larr; Back</a>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 p-6 mb-6">
+    <div class="flex justify-between items-start">
+        <div>
+            <h1 class="text-xl font-semibold text-navy-950">{{ syllabus.title if syllabus else 'Material Review' }}</h1>
+            <p class="text-steel-500 text-sm mt-1 capitalize">{{ job.material_type if job else '' }} — submitted by {{ submitter.email if submitter else '' }}</p>
+        </div>
+        <div>
+            {% if review.status == 'approved' %}
+                <span class="bg-green-50 text-green-700 text-xs font-medium px-3 py-1.5 rounded">Approved</span>
+            {% elif review.status == 'changes_requested' %}
+                <span class="bg-amber-50 text-amber-700 text-xs font-medium px-3 py-1.5 rounded">Changes Requested</span>
+            {% else %}
+                <span class="bg-blue-50 text-signal text-xs font-medium px-3 py-1.5 rounded">Pending Review</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if current_user.role == 'qa_reviewer' and review.status != 'approved' %}
+    <div class="flex gap-3 mt-5 pt-5 border-t border-steel-100">
+        <form method="POST" action="{{ url_for('review_web.submit_decision', review_id=review.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="decision" value="approved">
+            <button type="submit" class="bg-green-600 text-white px-5 py-2 rounded text-sm font-medium hover:bg-green-700 transition">Approve</button>
+        </form>
+        <form method="POST" action="{{ url_for('review_web.submit_decision', review_id=review.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="decision" value="changes_requested">
+            <button type="submit" class="bg-white border border-amber-300 text-amber-700 px-5 py-2 rounded text-sm font-medium hover:bg-amber-50 transition">Request Changes</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 p-6">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Feedback</h2>
+
+    <div class="space-y-4 mb-6 max-h-96 overflow-y-auto">
+        {% for c in review.comments %}
+        <div class="flex {{ 'justify-end' if c.author_user_id == current_user.id else 'justify-start' }}">
+            <div class="max-w-md {{ 'bg-navy-950 text-white' if c.author_user_id == current_user.id else 'bg-steel-100 text-navy-950' }} rounded-lg px-4 py-2.5">
+                <p class="text-sm">{{ c.body }}</p>
+                <p class="text-xs mt-1 {{ 'text-steel-300' if c.author_user_id == current_user.id else 'text-steel-400' }}">
+                    {{ c.created_at.strftime('%H:%M') }}
+                </p>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-steel-400 text-sm">No comments yet.</p>
+        {% endfor %}
+    </div>
+
+    <form method="POST" action="{{ url_for('review_web.add_comment', review_id=review.id) }}" class="flex gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="body" required placeholder="Write a comment..."
+            class="flex-1 border border-steel-200 rounded px-4 py-2.5 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        <button type="submit" class="bg-navy-950 text-white px-6 py-2.5 rounded font-medium hover:bg-navy-900 transition text-sm">Send</button>
+    </form>
+</div>
+{% endblock %}

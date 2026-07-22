@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <h1 class="text-xl font-semibold text-navy-950">Welcome back</h1>
+    <p class="text-steel-500 mt-1 text-sm">{{ user.email }} — <span class="text-signal font-medium">{{ user.role }}</span></p>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 p-8">
+    <p class="text-steel-500 text-sm">Dashboard content coming next — syllabus list, generation, and reviews will live here, tailored to your role.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SETA Material Generator{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: { 950: '#0c1420', 900: '#111d2e', 800: '#1a2c42', 700: '#243a54', 600: '#2f4a6b' },
+                        steel: { 50: '#f4f6f8', 100: '#e7ebef', 200: '#cdd6de', 300: '#a8b6c3', 400: '#7c8fa1', 500: '#5a6f83' },
+                        signal: '#4a7a96',
+                    },
+                    fontFamily: { sans: ['Segoe UI', 'system-ui', 'sans-serif'] },
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-steel-50 min-h-screen font-sans">
+    {% if current_user.is_authenticated %}
+    {% if current_user.is_authenticated %}
+    <nav class="bg-navy-950 text-steel-100 px-8 py-4 flex justify-between items-center border-b border-navy-700">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-navy-800 border border-navy-600 rounded flex items-center justify-center text-steel-200 font-semibold text-sm">S</div>
+            <span class="font-semibold text-base tracking-tight text-white">SETA Material Generator</span>
+        </div>
+        <div class="flex gap-6 items-center text-sm">
+            <span class="text-steel-400">{{ current_user.email }}</span>
+            <span class="border border-navy-600 px-2 py-0.5 rounded text-xs uppercase tracking-wide text-steel-300">{{ current_user.role }}</span>
+            <a href="{{ url_for('web.dashboard') }}" class="text-steel-300 hover:text-white transition">Dashboard</a>
+
+            {% if current_user.role in ('user', 'org_admin') %}
+            <a href="{{ url_for('syllabus_web.list_syllabi') }}" class="text-steel-300 hover:text-white transition">Syllabi</a>
+            {% endif %}
+
+            {% if current_user.role in ('user', 'org_admin') %}
+            <a href="{{ url_for('branding_web.branding') }}" class="text-steel-300 hover:text-white transition">Branding</a>
+            {% endif %}
+
+            {% if current_user.role == 'qa_reviewer' %}
+            <a href="{{ url_for('web.dashboard') }}" class="text-steel-300 hover:text-white transition">Reviews</a>
+            {% endif %}
+
+            {% if current_user.role == 'superadmin' %}
+            <a href="{{ url_for('web_admin.organizations') }}" class="text-steel-300 hover:text-white transition">Admin</a>
+            {% endif %}
+
+            <a href="{{ url_for('web.logout') }}" class="text-steel-300 hover:text-white transition">Logout</a>
+        </div>
+    </nav>
+    {% endif %}
+    {% endif %}
+
+    <main class="max-w-6xl mx-auto p-8">
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-navy-950 bg-opacity-80 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-8 text-center max-w-sm">
+            <div class="w-10 h-10 border-4 border-steel-200 border-t-navy-950 rounded-full animate-spin mx-auto mb-4"></div>
+            <p id="loading-message" class="text-navy-950 font-medium">Working on it...</p>
+            <p class="text-steel-400 text-sm mt-1">This can take up to a minute.</p>
+        </div>
+    </div>
+
+    <script>
+        function showLoading(message) {
+            document.getElementById('loading-message').textContent = message || 'Working on it...';
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

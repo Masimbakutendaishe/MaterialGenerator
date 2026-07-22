@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Organizations{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200 flex justify-between items-center">
+    <div>
+        <h1 class="text-xl font-semibold text-navy-950">Organizations</h1>
+        <p class="text-steel-500 mt-1 text-sm">Platform-wide tenant management</p>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 p-6 mb-8">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Create Organization</h2>
+    <form method="POST" action="{{ url_for('web_admin.create_organization') }}" class="flex gap-4 items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex-1">
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Organization Name</label>
+            <input type="text" name="name" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        </div>
+        <div class="w-40">
+            <label class="block text-sm font-medium text-steel-500 mb-1.5">Trial Days</label>
+            <input type="number" name="trial_days" placeholder="14" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        </div>
+        <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition">Create</button>
+    </form>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-steel-50 border-b border-steel-200">
+            <tr>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Name</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Plan</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Trial Ends</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for org in orgs %}
+            <tr class="border-b border-steel-100 hover:bg-steel-50 transition">
+                <td class="px-6 py-3">
+                    <a href="{{ url_for('web_admin.organization_detail', org_id=org.id) }}" class="text-signal font-medium hover:underline">{{ org.name }}</a>
+                </td>
+                <td class="px-6 py-3 text-steel-500">{{ org.plan }}</td>
+                <td class="px-6 py-3 text-steel-500">{{ org.trial_ends_at.strftime('%Y-%m-%d') if org.trial_ends_at else '—' }}</td>
+                <td class="px-6 py-3">
+                    {% if org.is_active %}
+                        <span class="text-green-700 text-xs font-medium">Active</span>
+                    {% else %}
+                        <span class="text-red-700 text-xs font-medium">Disabled</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-6 py-8 text-center text-steel-400">No organizations yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

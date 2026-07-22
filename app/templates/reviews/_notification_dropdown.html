@@ -1,0 +1,11 @@
+<div class="p-2">
+    {% for n in notifications %}
+    <a href="{{ url_for('review_web.review_detail', review_id=n.link_review_id) if n.link_review_id else '#' }}"
+       class="block px-3 py-2.5 rounded text-sm hover:bg-steel-50 transition {{ 'bg-blue-50' if not n.is_read else '' }}">
+        <p class="text-navy-950">{{ n.message }}</p>
+        <p class="text-steel-400 text-xs mt-0.5">{{ n.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+    </a>
+    {% else %}
+    <p class="text-steel-400 text-sm px-3 py-4 text-center">No notifications</p>
+    {% endfor %}
+</div>

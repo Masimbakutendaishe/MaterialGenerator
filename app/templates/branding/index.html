@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Branding{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <h1 class="text-xl font-semibold text-navy-950">Branding</h1>
+    <p class="text-steel-500 mt-1 text-sm">Your logo and colors appear on every generated material</p>
+</div>
+
+<div class="grid grid-cols-2 gap-8 items-stretch">
+    <div class="bg-white rounded-lg border border-steel-200 p-6">
+        <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Update Branding</h2>
+        <form method="POST" action="{{ url_for('branding_web.update') }}" enctype="multipart/form-data" class="space-y-5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Logo (.png, .jpg)</label>
+                <input type="file" name="logo" accept=".png,.jpg,.jpeg" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Primary Color</label>
+                <input type="color" name="primary" value="{{ (org.brand_colors or {}).get('primary', '#1A5276') }}" class="w-full h-11 border border-steel-200 rounded cursor-pointer">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Secondary Color</label>
+                <input type="color" name="secondary" value="{{ (org.brand_colors or {}).get('secondary', '#2874A6') }}" class="w-full h-11 border border-steel-200 rounded cursor-pointer">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Accent Color</label>
+                <input type="color" name="accent" value="{{ (org.brand_colors or {}).get('accent', '#F39C12') }}" class="w-full h-11 border border-steel-200 rounded cursor-pointer">
+            </div>
+
+            <button type="submit" class="bg-navy-950 text-white px-6 py-2.5 rounded font-medium hover:bg-navy-900 transition text-sm">Save Branding</button>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-lg border border-steel-200 p-6 flex flex-col">
+        <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4 text-center">Current Branding</h2>
+
+        <div class="flex flex-col items-center justify-center flex-1">
+            {% if logo_url %}
+                <img src="{{ logo_url }}" alt="Organization logo" class="max-h-24 mb-6 border border-steel-200 rounded p-3">
+            {% else %}
+                <div class="w-full h-24 mb-6 border border-dashed border-steel-300 rounded flex items-center justify-center">
+                    <p class="text-steel-400 text-sm">No logo uploaded yet</p>
+                </div>
+            {% endif %}
+
+            <div class="flex gap-6">
+                {% for label, key in [('Primary', 'primary'), ('Secondary', 'secondary'), ('Accent', 'accent')] %}
+                <div class="text-center">
+                    <div class="color-swatch w-14 h-14 rounded-lg border-2 border-steel-200 mx-auto" data-color="{{ (org.brand_colors or {}).get(key, '#e2e8f0') }}"></div>
+                    <p class="text-xs text-steel-400 mt-2">{{ label }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.querySelectorAll('.color-swatch').forEach(el => {
+        el.style.backgroundColor = el.dataset.color;
+    });
+</script>
+{% endblock %}
