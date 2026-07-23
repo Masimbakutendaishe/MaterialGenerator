@@ -85,4 +85,12 @@ def create_app(config_name=None):
 
     celery_app.Task = ContextTask
 
+    @app.context_processor
+    def inject_nav_avatar():
+        from flask_login import current_user
+        if current_user.is_authenticated and current_user.profile_picture_url:
+            from app.services.storage_service import get_presigned_url
+            return {"nav_avatar_url": get_presigned_url(current_user.profile_picture_url, expires_in=300)}
+        return {"nav_avatar_url": None}
+
     return app

@@ -7,7 +7,15 @@ from anthropic import Anthropic
 from groq import Groq
 from app.services.ai_config import get_model_for_task
 
+import re
 
+
+def _repair_json_string(raw: str) -> str:
+    """Fixes the most common way AI models break JSON: emitting a backslash that isn't
+    part of a valid JSON escape sequence (\\", \\\\, \\n, \\t, \\r, \\b, \\f, \\uXXXX).
+    Doubles up any other backslash so it's treated as a literal character instead of
+    an invalid escape."""
+    return re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
 
 def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 5) -> str:
     """Routes a prompt to whichever provider/model is configured for this task.
@@ -171,14 +179,17 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 
 One section per learning outcome. Plain text only inside strings — no asterisks, no markdown headers."""
 
-    for attempt in range(2):  # try once, retry once more if JSON parsing fails
+    for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=4500)
         try:
             return json.loads(raw_response)
-        except json.JSONDecodeError as exc:
-            if attempt == 1:
-                raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-            continue
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
 
 def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
     """Expands a syllabus unit into real slide content: a few genuinely useful bullets
@@ -211,6 +222,68 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 }}"""
 
     raw_response = _call_model("slide_content", prompt, max_tokens=800)
+
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            return json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+
+def generate_assessment_questions(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
+    """Generates test questions for one syllabus unit, covering its learning outcomes.
+    Returns structured JSON so the docx builder can render blank space and marks per question."""
+    outcomes_text = "\n".join(f"- {o}" for o in outcomes)
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    prompt = f"""You are writing assessment questions for a South African SETA/QCTO-accredited
+workplace training assessment.
+
+Unit: {unit_name}
+{chr(10).join(context_lines)}
+
+This unit covers these learning outcomes:
+{outcomes_text}
+
+Write 4 to 6 assessment questions that test whether a learner has achieved these outcomes.
+Mix question types: some short-answer (1-2 sentence expected answer), some multiple-choice
+(4 options, one correct), some scenario-based (describe a workplace situation and ask what
+the learner should do). Assign a mark value to each question based on its complexity (short
+answer: 2-3 marks, multiple-choice: 1 mark, scenario: 4-5 marks).
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "questions": [
+    {{
+      "type": "short_answer",
+      "text": "<question text>",
+      "marks": 3,
+      "blank_lines": 3
+    }},
+    {{
+      "type": "multiple_choice",
+      "text": "<question text>",
+      "marks": 1,
+      "options": ["<option A>", "<option B>", "<option C>", "<option D>"]
+    }},
+    {{
+      "type": "scenario",
+      "text": "<scenario description followed by the question>",
+      "marks": 5,
+      "blank_lines": 5
+    }}
+  ]
+}}
+
+"blank_lines" for short_answer/scenario suggests how many ruled lines to leave for the answer.
+For multiple_choice, omit "blank_lines"."""
+
+    raw_response = _call_model("textbook_writing", prompt, max_tokens=3000)
 
     try:
         return json.loads(raw_response)

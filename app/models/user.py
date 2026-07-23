@@ -17,6 +17,9 @@ class User(db.Model, UserMixin):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     organization_id = db.Column(db.String(36), db.ForeignKey("organizations.id"), nullable=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
+    first_name = db.Column(db.String(100), nullable=True)
+    last_name = db.Column(db.String(100), nullable=True)
+    profile_picture_url = db.Column(db.String(500), nullable=True)  # storage key, like Organization.logo_url
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False, default="user")
     reports_to_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)

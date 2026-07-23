@@ -5,6 +5,7 @@ from app.web.views import superadmin_required
 from app.extensions import db
 from app.models.organization import Organization
 from app.models.user import User, VALID_ROLES
+from flask_login import current_user
 
 web_admin_bp = Blueprint("web_admin", __name__, url_prefix="/admin")
 
@@ -90,3 +91,34 @@ def toggle_user(user_id):
     db.session.commit()
     flash(f"User '{user.email}' {'enabled' if user.is_active else 'disabled'}.")
     return redirect(url_for("web_admin.organization_detail", org_id=user.organization_id))
+
+@web_admin_bp.route("/password-resets")
+@superadmin_required
+def password_resets():
+    from app.models.password_reset import PasswordResetRequest
+    pending = PasswordResetRequest.query.filter_by(status="pending").order_by(PasswordResetRequest.created_at.desc()).all()
+    approved = PasswordResetRequest.query.filter_by(status="approved").order_by(PasswordResetRequest.created_at.desc()).all()
+    return render_template("admin/password_resets.html", pending=pending, approved=approved)
+
+@web_admin_bp.route("/password-resets/<request_id>/approve", methods=["POST"])
+@superadmin_required
+def approve_password_reset(request_id):
+    from app.models.password_reset import PasswordResetRequest
+    reset_request = PasswordResetRequest.query.get_or_404(request_id)
+    reset_request.status = "approved"
+    reset_request.approved_by_user_id = current_user.id
+    otp_code = reset_request.generate_otp()
+    db.session.commit()
+
+    return render_template("admin/otp_display.html", user_email=reset_request.user.email, otp_code=otp_code)
+
+
+@web_admin_bp.route("/password-resets/<request_id>/deny", methods=["POST"])
+@superadmin_required
+def deny_password_reset(request_id):
+    from app.models.password_reset import PasswordResetRequest
+    reset_request = PasswordResetRequest.query.get_or_404(request_id)
+    reset_request.status = "denied"
+    db.session.commit()
+    flash("Reset request denied.")
+    return redirect(url_for("web_admin.password_resets"))

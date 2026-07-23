@@ -24,6 +24,8 @@ class GenerationJob(db.Model):
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     task_id = db.Column(db.String(255), nullable=True)  # Celery task ID, needed to revoke/cancel
     triggered_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
+    package_id = db.Column(db.String(36), db.ForeignKey("material_packages.id"), nullable=True)
+    document_subtype = db.Column(db.String(50), nullable=True)  # e.g. "assessment", "facilitator_guide" — NULL for legacy single-document jobs
 
     def __repr__(self):
         return f"<GenerationJob {self.id} {self.material_type} {self.status}>"

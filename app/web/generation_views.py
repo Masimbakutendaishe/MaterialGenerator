@@ -167,3 +167,50 @@ def row_partial(job_id):
         syllabus_title=syllabus.title if syllabus else "Unknown",
         review=review,
     )
+
+
+@generation_web_bp.route("/trigger-package", methods=["POST"])
+@login_required
+def trigger_package():
+    from app.models.material_package import MaterialPackage, PACKAGE_DOCUMENTS
+    from app.tasks.generation_tasks import generate_package_document_task
+
+    syllabus_id = request.form.get("syllabus_id")
+    package_type = request.form.get("package_type")
+
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first()
+    if not syllabus:
+        flash("Syllabus not found.")
+        return redirect(url_for("generation_web.index"))
+
+    if package_type not in PACKAGE_DOCUMENTS:
+        flash("Invalid package type.")
+        return redirect(url_for("generation_web.index"))
+
+    package = MaterialPackage(
+        organization_id=current_user.organization_id,
+        syllabus_id=syllabus_id,
+        triggered_by_user_id=current_user.id,
+        package_type=package_type,
+    )
+    db.session.add(package)
+    db.session.flush()
+
+    for subtype in PACKAGE_DOCUMENTS[package_type]:
+        job = GenerationJob(
+            organization_id=current_user.organization_id,
+            syllabus_id=syllabus_id,
+            material_type=subtype,
+            document_subtype=subtype,
+            package_id=package.id,
+            triggered_by_user_id=current_user.id,
+        )
+        db.session.add(job)
+        db.session.flush()
+        async_result = generate_package_document_task.delay(job.id)
+        job.task_id = async_result.id
+
+    db.session.commit()
+
+    flash(f"Generating {package_type.replace('_', ' ')} for '{syllabus.title}'...")
+    return redirect(url_for("generation_web.index"))

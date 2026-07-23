@@ -120,3 +120,12 @@ def mark_all_read():
     Notification.query.filter_by(recipient_user_id=current_user.id, is_read=False).update({"is_read": True})
     db.session.commit()
     return jsonify({"status": "ok"})
+
+@review_web_bp.route("/notifications/<notification_id>/read", methods=["POST"])
+@login_required
+def mark_notification_read(notification_id):
+    notification = Notification.query.filter_by(id=notification_id, recipient_user_id=current_user.id).first()
+    if notification:
+        notification.is_read = True
+        db.session.commit()
+    return jsonify({"status": "ok"})

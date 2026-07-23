@@ -55,3 +55,16 @@ class Notification(db.Model):
 
     def __repr__(self):
         return f"<Notification {self.id} read={self.is_read}>"
+
+def prune_old_notifications(recipient_user_id: str, keep: int = 20):
+    """Deletes a user's oldest notifications beyond the most recent `keep` count."""
+    from app.extensions import db
+    ids_to_keep = [
+        n.id for n in Notification.query.filter_by(recipient_user_id=recipient_user_id)
+        .order_by(Notification.created_at.desc()).limit(keep).all()
+    ]
+    if ids_to_keep:
+        Notification.query.filter(
+            Notification.recipient_user_id == recipient_user_id,
+            ~Notification.id.in_(ids_to_keep)
+        ).delete(synchronize_session=False)
