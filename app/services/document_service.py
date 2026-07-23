@@ -30,6 +30,84 @@ def _add_bottom_border(paragraph, color_hex: str, size: str = "18"):
     p_borders.append(bottom)
     p_pr.append(p_borders)
 
+def _add_full_border(paragraph, color_hex: str):
+    """Adds a border on all four sides of a paragraph — used for scenario call-out boxes."""
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_borders = OxmlElement("w:pBdr")
+    for edge in ("top", "left", "bottom", "right"):
+        border = OxmlElement(f"w:{edge}")
+        border.set(qn("w:val"), "single")
+        border.set(qn("w:sz"), "8")
+        border.set(qn("w:space"), "8")
+        border.set(qn("w:color"), color_hex.lstrip("#").upper())
+        p_borders.append(border)
+    p_pr.append(p_borders)
+
+
+def _render_content_block(doc, block, primary_hex, secondary):
+    """Renders one typed content block (paragraph, scenario, table, formula) with distinct styling."""
+    block_type = block.get("type", "paragraph")
+
+    if block_type == "scenario":
+        label_p = doc.add_paragraph()
+        label_p.paragraph_format.space_before = Pt(10)
+        _shade_paragraph(label_p, "F4F6F8")  # light steel background
+        _add_full_border(label_p, primary_hex)
+        label_run = label_p.add_run("WORKPLACE SCENARIO")
+        label_run.bold = True
+        label_run.font.size = Pt(10)
+        label_run.font.color.rgb = secondary
+
+        text_p = doc.add_paragraph()
+        _shade_paragraph(text_p, "F4F6F8")
+        _add_full_border(text_p, primary_hex)
+        text_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        text_run = text_p.add_run(block.get("text", ""))
+        text_run.italic = True
+        text_run.font.size = Pt(11)
+        doc.add_paragraph().paragraph_format.space_after = Pt(4)  # small gap after the box
+
+    elif block_type == "table":
+        headers = block.get("headers", [])
+        rows = block.get("rows", [])
+        if headers:
+            table = doc.add_table(rows=1 + len(rows), cols=len(headers))
+            table.style = "Table Grid"
+            for i, h in enumerate(headers):
+                cell = table.cell(0, i)
+                cell.text = h
+                cell.paragraphs[0].runs[0].bold = True
+                cell.paragraphs[0].runs[0].font.size = Pt(10)
+            for r, row in enumerate(rows):
+                for c, value in enumerate(row):
+                    if c < len(headers):
+                        table.cell(r + 1, c).text = str(value)
+                        for run in table.cell(r + 1, c).paragraphs[0].runs:
+                            run.font.size = Pt(10)
+            doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+    elif block_type == "formula":
+        formula_p = doc.add_paragraph()
+        formula_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        formula_p.paragraph_format.space_before = Pt(8)
+        formula_p.paragraph_format.space_after = Pt(8)
+        _shade_paragraph(formula_p, "FFF8E7")  # warm highlight background
+        if block.get("label"):
+            label_run = formula_p.add_run(f"{block['label']}: ")
+            label_run.bold = True
+            label_run.font.size = Pt(11)
+        formula_run = formula_p.add_run(block.get("text", ""))
+        formula_run.font.size = Pt(13)
+        formula_run.font.name = "Consolas"
+
+    else:  # paragraph
+        for para_text in block.get("text", "").split("\n\n"):
+            cleaned = para_text.strip()
+            if cleaned:
+                body_p = doc.add_paragraph(cleaned)
+                body_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                body_p.paragraph_format.space_after = Pt(8)
+
 
 def _shade_paragraph(paragraph, color_hex: str):
     """Adds a background fill color behind a paragraph — used for the org-name band on the cover."""
@@ -184,19 +262,26 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
 
         for section in chapter.get("sections", []):
             heading = section.get("heading", "")
-            body = section.get("body", "")
             if heading:
                 section_heading = doc.add_paragraph()
                 section_run = section_heading.add_run(heading)
                 section_run.bold = True
                 section_run.font.size = Pt(15)
                 section_run.font.color.rgb = secondary
-            for para in body.split("\n\n"):
-                cleaned = para.strip()
-                if cleaned:
-                    body_p = doc.add_paragraph(cleaned)
-                    body_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                    body_p.paragraph_format.space_after = Pt(8)
+
+            blocks = section.get("blocks")
+            if blocks:
+                for block in blocks:
+                    _render_content_block(doc, block, primary_hex, secondary)
+            else:
+                # Fallback for any older-format response that still uses "body" instead of "blocks"
+                body = section.get("body", "")
+                for para in body.split("\n\n"):
+                    cleaned = para.strip()
+                    if cleaned:
+                        body_p = doc.add_paragraph(cleaned)
+                        body_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                        body_p.paragraph_format.space_after = Pt(8)
 
         key_points = chapter.get("key_points", [])
         if key_points:

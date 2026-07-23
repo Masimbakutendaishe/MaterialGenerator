@@ -139,9 +139,9 @@ Preserve the original structure and wording as closely as possible — this is r
 
 
 def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
-    """Writes full chapter content for one syllabus unit. Returns a structured dict
-    {"intro": str, "sections": [{"heading": str, "body": str}], "key_points": [str]}
-    so the document builder can format each part correctly instead of guessing from raw text."""
+    """Writes full chapter content for one syllabus unit. Returns a structured dict where
+    each section is a list of typed content blocks (paragraph, scenario, table, formula)
+    so the document builder can render each one with distinct, appropriate styling."""
     outcomes_text = "\n".join(f"- {o}" for o in outcomes)
     context_lines = []
     if seta:
@@ -160,10 +160,9 @@ Learning outcomes this chapter must cover:
 
 Write technically specific, textbook-quality content — not generic overview text. For each learning
 outcome, include where relevant: precise definitions, step-by-step procedures, specific standards or
-regulatory references (e.g. OHS Act, SANS standards, specific PPE classes/ratings), common mistakes or
-failure points workers make, and one detailed, realistic workplace scenario (not a one-line example —
-walk through what happens, what the worker does, and why). Assume the reader is a working adult who
-needs to actually apply this on the job, not just recognize the terminology.
+regulatory references, common mistakes, and at least one detailed workplace scenario. Where a
+calculation, ratio, or formula is genuinely relevant to the topic, include it. Where comparing options
+or listing structured data is genuinely relevant, include a table.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -171,13 +170,20 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
   "sections": [
     {{
       "heading": "<short section heading tied to one learning outcome>",
-      "body": "Full technical explanation, 150-250 words, following the guidance above. Plain text, no markdown."
+      "blocks": [
+        {{"type": "paragraph", "text": "Explanatory text, 100-200 words, plain text no markdown."}},
+        {{"type": "scenario", "text": "A detailed, realistic workplace scenario walking through what happens and what the worker should do."}},
+        {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"], ["value", "value"]]}},
+        {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, plain text, e.g. Risk = Likelihood x Severity"}}
+      ]
     }}
   ],
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>", "<concise takeaway 3>"]
 }}
 
-One section per learning outcome. Plain text only inside strings — no asterisks, no markdown headers."""
+Each section needs at least one "paragraph" block. Only include "scenario", "table", or "formula" blocks
+where genuinely relevant to that section — do not force them into every section. One section per learning
+outcome. Plain text only inside strings — no asterisks, no markdown headers."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=4500)
