@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Package{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <a href="{{ url_for('generation_web.index') }}" class="text-signal text-sm hover:underline">&larr; Generate</a>
+    <h1 class="text-xl font-semibold text-navy-950 mt-1">{{ syllabus.title if syllabus else 'Package' }}</h1>
+    <p class="text-steel-500 mt-1 text-sm capitalize">{{ package.package_type.replace('_', ' ') }} — {{ package.status.replace('_', ' ') }}</p>
+</div>
+
+{% if review and review.status != 'approved' %}
+<div class="bg-blue-50 border-l-4 border-signal text-navy-950 px-4 py-3 rounded mb-6 text-sm">
+    This package is under review ({{ review.status.replace('_', ' ') }}). Documents will be downloadable once approved.
+</div>
+{% endif %}
+
+<div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-steel-50 border-b border-steel-200">
+            <tr>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Document</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Status</th>
+                <th class="text-right px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in package.jobs %}
+            <tr class="border-b border-steel-100">
+                <td class="px-6 py-3 text-navy-950 font-medium capitalize">{{ job.document_subtype.replace('_', ' ') }}</td>
+                <td class="px-6 py-3">
+                    <span class="text-xs font-medium
+                        {% if job.status == 'done' %}text-green-700
+                        {% elif job.status == 'failed' %}text-red-700
+                        {% else %}text-signal{% endif %}">{{ job.status }}</span>
+                </td>
+                <td class="px-6 py-3 text-right">
+                    {% if job.status == 'done' and can_download %}
+                        <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline">Download</a>
+                    {% elif job.status == 'failed' %}
+                        <span class="text-red-600 text-xs">{{ job.error_message or 'Failed' }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

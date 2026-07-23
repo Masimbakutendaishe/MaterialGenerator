@@ -14,24 +14,41 @@ generation_web_bp = Blueprint("generation_web", __name__, url_prefix="/generate"
 @generation_web_bp.route("/")
 @login_required
 def index():
-
+    from app.models.material_package import MaterialPackage
     from app.models.review import Notification
+
     Notification.query.filter_by(recipient_user_id=current_user.id, is_read=False).filter(
         Notification.link_job_id.isnot(None)
     ).update({"is_read": True})
     db.session.commit()
-    syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).order_by(Syllabus.created_at.desc()).all()
-    jobs = GenerationJob.query.filter_by(organization_id=current_user.organization_id).order_by(GenerationJob.created_at.desc()).limit(20).all()
 
-    job_reviews = {}
+    syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).order_by(Syllabus.created_at.desc()).all()
+
+    # Packages (grouped generations)
+    packages = MaterialPackage.query.filter_by(organization_id=current_user.organization_id).order_by(
+        MaterialPackage.created_at.desc()
+    ).limit(10).all()
+    package_data = []
+    for pkg in packages:
+        syllabus = Syllabus.query.get(pkg.syllabus_id)
+        review = MaterialReview.query.filter_by(package_id=pkg.id).first()
+        package_data.append({"package": pkg, "title": syllabus.title if syllabus else "Unknown", "review": review})
+
+    # Standalone jobs (not part of a package) — today's existing single-document generations
+    jobs = GenerationJob.query.filter_by(organization_id=current_user.organization_id, package_id=None).order_by(
+        GenerationJob.created_at.desc()
+    ).limit(20).all()
     job_syllabus_titles = {}
+    job_reviews = {}
     for job in jobs:
-        review = MaterialReview.query.filter_by(generation_job_id=job.id).first()
-        job_reviews[job.id] = review
         syllabus = Syllabus.query.get(job.syllabus_id)
         job_syllabus_titles[job.id] = syllabus.title if syllabus else "Unknown"
+        job_reviews[job.id] = MaterialReview.query.filter_by(generation_job_id=job.id).first()
 
-    return render_template("generate/index.html", syllabi=syllabi, jobs=jobs, job_reviews=job_reviews, job_syllabus_titles=job_syllabus_titles)
+    return render_template(
+        "generate/index.html", syllabi=syllabi, jobs=jobs,
+        job_syllabus_titles=job_syllabus_titles, job_reviews=job_reviews, packages=package_data,
+    )
 
 
 @generation_web_bp.route("/trigger", methods=["POST"])
@@ -214,3 +231,58 @@ def trigger_package():
 
     flash(f"Generating {package_type.replace('_', ' ')} for '{syllabus.title}'...")
     return redirect(url_for("generation_web.index"))
+
+
+@generation_web_bp.route("/submit-package-review/<package_id>", methods=["POST"])
+@login_required
+def submit_package_review(package_id):
+    from app.models.material_package import MaterialPackage
+    from app.models.review import MaterialReview, Notification, prune_old_notifications
+
+    package = MaterialPackage.query.filter_by(id=package_id, organization_id=current_user.organization_id).first()
+    if not package or package.status != "done":
+        flash("Package is not ready to submit for review.")
+        return redirect(url_for("generation_web.index"))
+
+    if MaterialReview.query.filter_by(package_id=package_id).first():
+        flash("This package was already submitted for review.")
+        return redirect(url_for("generation_web.index"))
+
+    if not current_user.reports_to_user_id:
+        flash("You have no assigned QA reviewer. Ask your admin to set one.")
+        return redirect(url_for("generation_web.index"))
+
+    review = MaterialReview(
+        package_id=package_id,
+        organization_id=current_user.organization_id,
+        submitted_by_user_id=current_user.id,
+        reviewer_user_id=current_user.reports_to_user_id,
+        status="pending_review",
+    )
+    db.session.add(review)
+    db.session.flush()
+
+    db.session.add(Notification(
+        recipient_user_id=current_user.reports_to_user_id,
+        message=f"{current_user.email} submitted a {package.package_type.replace('_', ' ')} for your review.",
+        link_review_id=review.id,
+    ))
+    prune_old_notifications(current_user.reports_to_user_id)
+    db.session.commit()
+
+    flash("Package submitted for review.")
+    return redirect(url_for("generation_web.index"))
+
+
+@generation_web_bp.route("/package/<package_id>")
+@login_required
+def package_detail(package_id):
+    from app.models.material_package import MaterialPackage
+
+    package = MaterialPackage.query.filter_by(id=package_id, organization_id=current_user.organization_id).first_or_404()
+    syllabus = Syllabus.query.get(package.syllabus_id)
+    review = MaterialReview.query.filter_by(package_id=package_id).first()
+
+    can_download = not review or review.status == "approved"
+
+    return render_template("generate/package_detail.html", package=package, syllabus=syllabus, review=review, can_download=can_download)

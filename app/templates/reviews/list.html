@@ -25,7 +25,7 @@
             <tr class="clickable-row border-b border-steel-100 hover:bg-steel-50 transition cursor-pointer"
                 data-href="{{ url_for('review_web.review_detail', review_id=item.review.id) }}">
                 <td class="px-6 py-3 text-navy-950 font-medium">{{ item.syllabus_title }}</td>
-                <td class="px-6 py-3 text-steel-500 capitalize">{{ item.job.material_type if item.job else '—' }}</td>
+                <td class="px-6 py-3 text-steel-500 capitalize">{{ item.material_type }}</td>
                 <td class="px-6 py-3">
                     {% if item.review.status == 'approved' %}
                         <span class="text-green-700 text-xs font-medium">Approved</span>

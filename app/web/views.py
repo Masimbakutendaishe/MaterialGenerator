@@ -58,11 +58,16 @@ def dashboard():
         pending = MaterialReview.query.filter_by(reviewer_user_id=current_user.id).filter(
             MaterialReview.status != "approved"
         ).order_by(MaterialReview.created_at.desc()).limit(6).all()
+        from app.models.material_package import MaterialPackage
         enriched = []
         for r in pending:
-            job = GenerationJob.query.get(r.generation_job_id)
-            syllabus = Syllabus.query.get(job.syllabus_id) if job else None
-            enriched.append({"review": r, "job": job, "title": syllabus.title if syllabus else "Unknown"})
+            if r.package_id:
+                package = MaterialPackage.query.get(r.package_id)
+                syllabus = Syllabus.query.get(package.syllabus_id) if package else None
+            else:
+                job = GenerationJob.query.get(r.generation_job_id)
+                syllabus = Syllabus.query.get(job.syllabus_id) if job else None
+            enriched.append({"review": r, "title": syllabus.title if syllabus else "Unknown"})
         return render_template("dashboard_qa.html", items=enriched, pending_count=pending_count, approved_count=approved_count, picture_url=picture_url)
 
     # user / org_admin

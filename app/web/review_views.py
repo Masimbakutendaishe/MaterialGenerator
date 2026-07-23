@@ -9,7 +9,6 @@ from app.models.user import User
 
 review_web_bp = Blueprint("review_web", __name__, url_prefix="/reviews")
 
-
 @review_web_bp.route("/")
 @login_required
 def list_reviews():
@@ -19,11 +18,26 @@ def list_reviews():
     else:
         reviews = MaterialReview.query.filter_by(submitted_by_user_id=current_user.id).order_by(MaterialReview.created_at.desc()).all()
 
+    from app.models.material_package import MaterialPackage
+
     enriched = []
     for r in reviews:
-        job = GenerationJob.query.get(r.generation_job_id)
-        syllabus = Syllabus.query.get(job.syllabus_id) if job else None
-        enriched.append({"review": r, "job": job, "syllabus_title": syllabus.title if syllabus else "Unknown"})
+        if r.package_id:
+            package = MaterialPackage.query.get(r.package_id)
+            syllabus = Syllabus.query.get(package.syllabus_id) if package else None
+            enriched.append({
+                "review": r, "job": None,
+                "syllabus_title": syllabus.title if syllabus else "Unknown",
+                "material_type": package.package_type.replace("_", " ") if package else "package",
+            })
+        else:
+            job = GenerationJob.query.get(r.generation_job_id)
+            syllabus = Syllabus.query.get(job.syllabus_id) if job else None
+            enriched.append({
+                "review": r, "job": job,
+                "syllabus_title": syllabus.title if syllabus else "Unknown",
+                "material_type": job.material_type if job else "—",
+            })
 
     return render_template("reviews/list.html", items=enriched)
 
@@ -36,8 +50,6 @@ def review_detail(review_id):
         flash("You do not have access to that review.")
         return redirect(url_for("review_web.list_reviews"))
 
-    job = GenerationJob.query.get(review.generation_job_id)
-    syllabus = Syllabus.query.get(job.syllabus_id) if job else None
     submitter = User.query.get(review.submitted_by_user_id)
     reviewer = User.query.get(review.reviewer_user_id)
 
@@ -45,11 +57,29 @@ def review_detail(review_id):
     db.session.commit()
 
     from app.services.storage_service import get_presigned_url
-    material_url = get_presigned_url(job.result_file_path, expires_in=600) if job and job.result_file_path else None
+
+    if review.package_id:
+        # Package-level review: show every document in the package
+        from app.models.material_package import MaterialPackage
+        package = MaterialPackage.query.get(review.package_id)
+        syllabus = Syllabus.query.get(package.syllabus_id) if package else None
+        job = None
+        material_url = None
+        package_documents = []
+        for j in (package.jobs if package else []):
+            url = get_presigned_url(j.result_file_path, expires_in=600) if j.result_file_path else None
+            package_documents.append({"job": j, "url": url})
+    else:
+        # Single-document review (existing behavior)
+        job = GenerationJob.query.get(review.generation_job_id)
+        syllabus = Syllabus.query.get(job.syllabus_id) if job else None
+        material_url = get_presigned_url(job.result_file_path, expires_in=600) if job and job.result_file_path else None
+        package_documents = None
 
     return render_template(
         "reviews/detail.html",
-        review=review, job=job, syllabus=syllabus, submitter=submitter, reviewer=reviewer, material_url=material_url,
+        review=review, job=job, syllabus=syllabus, submitter=submitter, reviewer=reviewer,
+        material_url=material_url, package_documents=package_documents,
     )
 
 

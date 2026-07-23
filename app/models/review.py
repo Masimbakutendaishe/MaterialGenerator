@@ -13,7 +13,8 @@ class MaterialReview(db.Model):
     __tablename__ = "material_reviews"
 
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    generation_job_id = db.Column(db.String(36), db.ForeignKey("generation_jobs.id"), nullable=False, unique=True)
+    generation_job_id = db.Column(db.String(36), db.ForeignKey("generation_jobs.id"), nullable=True, unique=True)
+    package_id = db.Column(db.String(36), db.ForeignKey("material_packages.id"), nullable=True)
     organization_id = db.Column(db.String(36), db.ForeignKey("organizations.id"), nullable=False)
     submitted_by_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
     reviewer_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)  # who it's assigned to

@@ -45,7 +45,6 @@ def _add_full_border(paragraph, color_hex: str):
 
 
 def _render_content_block(doc, block, primary_hex, secondary):
-    """Renders one typed content block (paragraph, scenario, table, formula) with distinct styling."""
     block_type = block.get("type", "paragraph")
 
     if block_type == "scenario":
