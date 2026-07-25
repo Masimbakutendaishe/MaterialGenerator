@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <h1 class="text-xl font-semibold text-navy-950">Search</h1>
+    <form method="GET" action="{{ url_for('search_web.search') }}" class="mt-4 flex gap-3">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search syllabi, textbooks, presentations, documents..."
+            class="flex-1 border border-steel-200 rounded px-4 py-2.5 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        <button type="submit" class="bg-navy-950 text-white px-6 py-2.5 rounded font-medium hover:bg-navy-900 transition text-sm">Search</button>
+    </form>
+</div>
+
+{% if query %}
+<div class="space-y-8">
+    <div>
+        <h2 class="text-xs font-semibold text-steel-500 uppercase tracking-wide mb-3">Syllabi ({{ results.syllabi|length }})</h2>
+        <div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+            {% for s in results.syllabi %}
+            <a href="{{ url_for('syllabus_web.detail', syllabus_id=s.id) }}" class="block px-6 py-3 border-b border-steel-100 last:border-b-0 hover:bg-steel-50 transition">
+                <p class="text-sm text-navy-950 font-medium">{{ s.title }}</p>
+                <p class="text-xs text-steel-400 capitalize">{{ s.source.replace('_', ' ') }}</p>
+            </a>
+            {% else %}
+            <p class="text-steel-400 text-sm px-6 py-4">No matching syllabi.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-xs font-semibold text-steel-500 uppercase tracking-wide mb-3">Packages ({{ results.packages|length }})</h2>
+        <div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+            {% for item in results.packages %}
+            <a href="{{ url_for('generation_web.package_detail', package_id=item.package.id) }}" class="block px-6 py-3 border-b border-steel-100 last:border-b-0 hover:bg-steel-50 transition">
+                <p class="text-sm text-navy-950 font-medium">{{ item.title }}</p>
+                <p class="text-xs text-steel-400 capitalize">{{ item.package.package_type.replace('_', ' ') }} — {{ item.package.status.replace('_', ' ') }}</p>
+            </a>
+            {% else %}
+            <p class="text-steel-400 text-sm px-6 py-4">No matching packages.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-xs font-semibold text-steel-500 uppercase tracking-wide mb-3">Documents ({{ results.jobs|length }})</h2>
+        <div class="bg-white rounded-lg border border-steel-200 overflow-hidden">
+            {% for item in results.jobs %}
+            <div class="flex justify-between items-center px-6 py-3 border-b border-steel-100 last:border-b-0 hover:bg-steel-50 transition">
+                <div>
+                    <p class="text-sm text-navy-950 font-medium">{{ item.title }}</p>
+                    <p class="text-xs text-steel-400 capitalize">
+                        {{ (item.job.document_subtype or item.job.material_type).replace('_', ' ') }}
+                        {% if item.get('is_package_doc') %} (part of a package){% endif %}
+                    </p>
+                </div>
+                {% if item.job.status == 'done' %}
+                    {% if item.job.package_id %}
+                    <a href="{{ url_for('generation_web.package_detail', package_id=item.job.package_id) }}" class="text-signal text-sm font-medium hover:underline">View Package</a>
+                    {% elif not item.review or item.review.status == 'approved' %}
+                    <a href="{{ url_for('generation_web.download', job_id=item.job.id) }}" class="text-signal text-sm font-medium hover:underline">Download</a>
+                    {% else %}
+                    <span class="text-xs text-steel-400">{{ item.review.status.replace('_', ' ') }}</span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-xs text-steel-400">{{ item.job.status }}</span>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-steel-400 text-sm px-6 py-4">No matching documents.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% else %}
+<p class="text-steel-400 text-sm">Enter a search term above to find syllabi, textbooks, presentations, and package documents.</p>
+{% endif %}
+{% endblock %}

@@ -3,7 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}SETA Material Generator{% endblock %}</title>
+    <title>{% block title %}Material Generator{% endblock %}</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32x32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/favicon-16x16.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/1.9.12/htmx.min.js"></script>
     <script>
@@ -25,8 +29,8 @@
     {% if current_user.is_authenticated %}
     <nav class="sticky top-0 z-40 bg-navy-950 text-steel-100 px-8 py-4 flex justify-between items-center border-b border-navy-700">
         <div class="flex items-center gap-3">
-            <div class="w-8 h-8 bg-navy-800 border border-navy-600 rounded flex items-center justify-center text-steel-200 font-semibold text-sm">S</div>
-            <span class="font-semibold text-base tracking-tight text-white">SETA Material Generator</span>
+            <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="Material Generator" class="h-8 w-auto">
+            <span class="font-semibold text-base tracking-tight text-white">Material Generator</span>
         </div>
         <div class="flex gap-6 items-center text-sm">
             <span class="border border-navy-600 px-2 py-0.5 rounded text-xs uppercase tracking-wide text-steel-300">{{ current_user.role }}</span>
@@ -46,6 +50,10 @@
             <a href="{{ url_for('web_admin.organizations') }}" class="text-steel-300 hover:text-white transition">Admin</a>
             <a href="{{ url_for('web_admin.password_resets') }}" class="text-steel-300 hover:text-white transition">Password Resets</a>
             {% endif %}
+
+            <form method="GET" action="{{ url_for('search_web.search') }}" class="relative">
+                <input type="text" name="q" placeholder="Search..." class="bg-navy-800 border border-navy-600 rounded px-3 py-1.5 text-sm text-white placeholder-steel-400 focus:outline-none focus:ring-2 focus:ring-signal w-40 focus:w-56 transition-all">
+            </form>
 
             <div class="relative">
                 <button onclick="toggleNotifications()" class="relative text-steel-300 hover:text-white transition">

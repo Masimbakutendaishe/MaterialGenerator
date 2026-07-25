@@ -2,6 +2,7 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 <div class="mb-10 flex items-center gap-4">
+    <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="" class="h-10 w-auto mr-1">
     {% if picture_url %}
     <img src="{{ picture_url }}" class="w-14 h-14 rounded-full object-cover border-2 border-steel-200">
     {% else %}

@@ -58,8 +58,23 @@ def review_detail(review_id):
 
     from app.services.storage_service import get_presigned_url
 
+    # Enrich each comment with its author's name/initial/avatar, so the template
+    # doesn't need to look anything up itself.
+    enriched_comments = []
+    for c in review.comments:
+        author = User.query.get(c.author_user_id)
+        avatar_url = get_presigned_url(author.profile_picture_url, expires_in=600) if author and author.profile_picture_url else None
+        initial = (author.first_name[0] if author and author.first_name else (author.email[0] if author else "?")).upper()
+        display_name = f"{author.first_name} {author.last_name}" if author and author.first_name else (author.email if author else "Unknown")
+        enriched_comments.append({
+            "comment": c,
+            "author_id": c.author_user_id,
+            "avatar_url": avatar_url,
+            "initial": initial,
+            "display_name": display_name,
+        })
+
     if review.package_id:
-        # Package-level review: show every document in the package
         from app.models.material_package import MaterialPackage
         package = MaterialPackage.query.get(review.package_id)
         syllabus = Syllabus.query.get(package.syllabus_id) if package else None
@@ -70,7 +85,6 @@ def review_detail(review_id):
             url = get_presigned_url(j.result_file_path, expires_in=600) if j.result_file_path else None
             package_documents.append({"job": j, "url": url})
     else:
-        # Single-document review (existing behavior)
         job = GenerationJob.query.get(review.generation_job_id)
         syllabus = Syllabus.query.get(job.syllabus_id) if job else None
         material_url = get_presigned_url(job.result_file_path, expires_in=600) if job and job.result_file_path else None
@@ -79,7 +93,7 @@ def review_detail(review_id):
     return render_template(
         "reviews/detail.html",
         review=review, job=job, syllabus=syllabus, submitter=submitter, reviewer=reviewer,
-        material_url=material_url, package_documents=package_documents,
+        material_url=material_url, package_documents=package_documents, enriched_comments=enriched_comments,
     )
 
 

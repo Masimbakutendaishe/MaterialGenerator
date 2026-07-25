@@ -173,8 +173,8 @@ def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_
     if nqf_level:
         context_lines.append(f"NQF Level: {nqf_level}")
 
-    prompt = f"""You are a subject-matter expert writing a technical chapter for a South African
-SETA/QCTO-accredited workplace training textbook.
+    prompt = f"""You are a subject-matter expert writing a chapter for a South African
+SETA/QCTO-accredited training textbook.
 
 Chapter: {unit_name}
 {chr(10).join(context_lines)}
@@ -182,11 +182,19 @@ Chapter: {unit_name}
 Learning outcomes this chapter must cover:
 {outcomes_text}
 
-Write technically specific, textbook-quality content — not generic overview text. For each learning
-outcome, include where relevant: precise definitions, step-by-step procedures, specific standards or
-regulatory references, common mistakes, and at least one detailed workplace scenario. Where a
-calculation, ratio, or formula is genuinely relevant to the topic, include it. Where comparing options
-or listing structured data is genuinely relevant, include a table.
+Write technically accurate, specific content grounded in the ACTUAL subject matter of this unit —
+do not force unrelated industrial, workplace-safety, or manufacturing framing onto topics that aren't
+about that (e.g. a programming or IT topic should use programming examples, not steel plants or mining).
+
+CRITICAL — never invent specific standard numbers, unit standard IDs, SANS numbers, or regulatory
+citations. Only reference a real standard/regulation by name if you are confident it genuinely exists
+and applies — otherwise describe the general principle in plain language without a fabricated citation
+attached to it. A vague-but-true statement is always better than a specific-but-invented one.
+
+For each learning outcome, include where relevant: precise definitions, step-by-step procedures,
+common mistakes, and at least one detailed, realistic scenario using examples natural to this actual
+subject matter. Where a calculation or formula is genuinely relevant, include it. Where comparing
+options or listing structured data is genuinely relevant, include a table.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -359,7 +367,16 @@ def generate_guide_section_content(document_subtype: str, unit_name: str, outcom
         context_lines.append(f"NQF Level: {nqf_level}")
 
     prompt = f"""You are writing content for {framing}, for a South African SETA/QCTO-accredited
-workplace training programme.
+training programme.
+
+Write content grounded in the ACTUAL subject matter of this unit — do not force unrelated industrial,
+workplace-safety, or manufacturing framing onto topics that aren't about that (e.g. a programming or IT
+topic should use programming examples, not steel plants or mining).
+
+CRITICAL — never invent specific standard numbers, unit standard IDs, SANS numbers, or regulatory
+citations. Only reference a real standard/regulation by name if you are confident it genuinely exists
+and applies — otherwise describe the general principle in plain language without a fabricated citation
+attached to it.
 
 Unit: {unit_name}
 {chr(10).join(context_lines)}

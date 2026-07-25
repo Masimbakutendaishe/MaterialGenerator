@@ -63,7 +63,9 @@ def create_app(config_name=None):
     from app.web.branding_views import branding_web_bp
     from app.web.generation_views import generation_web_bp
     from app.web.review_views import review_web_bp
+    from app.web.search_views import search_web_bp
 
+    app.register_blueprint(search_web_bp)
     app.register_blueprint(review_web_bp)
     app.register_blueprint(generation_web_bp)
     app.register_blueprint(branding_web_bp)

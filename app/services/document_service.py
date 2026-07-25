@@ -46,6 +46,7 @@ def _add_full_border(paragraph, color_hex: str):
 
 
 def _render_content_block(doc, block, primary_hex, secondary):
+    print(f"[DEBUG] block type received: {block.get('type')}")
     block_type = block.get("type", "paragraph")
 
     if block_type == "scenario":
@@ -115,24 +116,29 @@ def _render_content_block(doc, block, primary_hex, secondary):
                     cap_run = cap_para.add_run(block["caption"])
                     cap_run.italic = True
                     cap_run.font.size = Pt(9)
-            except Exception:
-                pass  # never let a diagram failure break the whole document
+            except Exception as exc:
+                print(f"[DEBUG] diagram render failed: {exc}")
 
     elif block_type == "image":
         from app.services.image_service import fetch_stock_photo
         search_term = block.get("search_term", "")
+        print(f"[DEBUG] image block search_term: '{search_term}'")
         if search_term:
-            photo_bytes = fetch_stock_photo(search_term)
-            if photo_bytes:
-                img_para = doc.add_paragraph()
-                img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                img_para.add_run().add_picture(io.BytesIO(photo_bytes), width=Inches(4.5))
-                if block.get("caption"):
-                    cap_para = doc.add_paragraph()
-                    cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    cap_run = cap_para.add_run(block["caption"])
-                    cap_run.italic = True
-                    cap_run.font.size = Pt(9)
+            try:
+                photo_bytes = fetch_stock_photo(search_term)
+                print(f"[DEBUG] photo_bytes returned: {photo_bytes is not None}")
+                if photo_bytes:
+                    img_para = doc.add_paragraph()
+                    img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    img_para.add_run().add_picture(io.BytesIO(photo_bytes), width=Inches(4.5))
+                    if block.get("caption"):
+                        cap_para = doc.add_paragraph()
+                        cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        cap_run = cap_para.add_run(block["caption"])
+                        cap_run.italic = True
+                        cap_run.font.size = Pt(9)
+            except Exception as exc:
+                print(f"[DEBUG] image render failed: {exc}")
 
     else:  # paragraph
         for para_text in block.get("text", "").split("\n\n"):
