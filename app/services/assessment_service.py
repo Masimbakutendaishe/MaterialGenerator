@@ -4,6 +4,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_assessment_questions
+from app.services.document_service import _add_page_numbers
 
 DEFAULT_PRIMARY = "1A5276"
 
@@ -99,6 +100,8 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
     total_run = total_para.add_run(f"Total Marks: {total_marks}")
     total_run.bold = True
     total_run.font.size = Pt(13)
+
+    _add_page_numbers(doc)
 
     buffer = BytesIO()
     doc.save(buffer)

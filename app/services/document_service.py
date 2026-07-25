@@ -295,7 +295,39 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
 
         doc.add_page_break()
 
+    _add_page_numbers(doc)
+
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer
+
+def _add_page_numbers(doc: Document):
+    """Adds 'Page X of Y' to the footer of every section — a real Word field, not static text."""
+    from docx.oxml.ns import qn as _qn
+    for section in doc.sections:
+        footer = section.footer
+        footer.is_linked_to_previous = False
+        para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        para.text = ""
+
+        run = para.add_run("Page ")
+
+        def _add_field(paragraph, field_code):
+            run_el = OxmlElement("w:r")
+            fld_begin = OxmlElement("w:fldChar")
+            fld_begin.set(_qn("w:fldCharType"), "begin")
+            instr = OxmlElement("w:instrText")
+            instr.set(_qn("xml:space"), "preserve")
+            instr.text = field_code
+            fld_end = OxmlElement("w:fldChar")
+            fld_end.set(_qn("w:fldCharType"), "end")
+            run_el.append(fld_begin)
+            run_el.append(instr)
+            run_el.append(fld_end)
+            paragraph._p.append(run_el)
+
+        _add_field(para, "PAGE")
+        para.add_run(" of ")
+        _add_field(para, "NUMPAGES")

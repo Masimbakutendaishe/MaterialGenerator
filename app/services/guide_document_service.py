@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_guide_section_content
-from app.services.document_service import _hex_to_rgb, _add_bottom_border, _render_content_block, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT
+from app.services.document_service import _hex_to_rgb, _add_bottom_border, _render_content_block, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT
 
 DOCUMENT_LABELS = {
     "learner_manual": "Learner Manual",
@@ -76,6 +76,7 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
                 sec_heading = doc.add_paragraph()
                 sec_run = sec_heading.add_run(section["heading"])
                 sec_run.bold = True
+                sec_run.underline = True
                 sec_run.font.size = Pt(14)
                 sec_run.font.color.rgb = secondary
 
@@ -92,6 +93,8 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
                 doc.add_paragraph(point, style="List Bullet")
 
         doc.add_page_break()
+
+    _add_page_numbers(doc)
 
     buffer = BytesIO()
     doc.save(buffer)
