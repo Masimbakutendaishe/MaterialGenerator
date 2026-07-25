@@ -16,18 +16,18 @@
 </div>
 
 <div class="grid grid-cols-3 gap-5 mb-8">
-    <div class="bg-white rounded-xl border border-steel-200 p-6">
+    <a href="{{ url_for('syllabus_web.list_syllabi') }}" class="block bg-white rounded-xl border border-steel-200 p-6 hover:border-signal transition">
         <p class="text-steel-400 text-xs uppercase tracking-wide font-medium mb-2">Syllabi Created</p>
         <p class="text-3xl font-semibold text-navy-950">{{ total_syllabi }}</p>
-    </div>
-    <div class="bg-white rounded-xl border border-steel-200 p-6">
+    </a>
+    <a href="{{ url_for('generation_web.index') }}" class="block bg-white rounded-xl border border-steel-200 p-6 hover:border-signal transition">
         <p class="text-steel-400 text-xs uppercase tracking-wide font-medium mb-2">Materials Generated</p>
         <p class="text-3xl font-semibold text-navy-950">{{ total_materials }}</p>
-    </div>
-    <div class="bg-gradient-to-br from-navy-950 to-navy-800 rounded-xl p-6 text-white">
+    </a>
+    <a href="{{ url_for('review_web.list_reviews') }}" class="block bg-gradient-to-br from-navy-950 to-navy-800 rounded-xl p-6 text-white hover:from-navy-900 hover:to-navy-700 transition">
         <p class="text-steel-300 text-xs uppercase tracking-wide font-medium mb-2">Approved Materials</p>
         <p class="text-3xl font-semibold">{{ total_approved }}</p>
-    </div>
+    </a>
 </div>
 
 <div class="grid grid-cols-2 gap-5 mb-8">

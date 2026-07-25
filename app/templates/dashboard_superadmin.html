@@ -19,14 +19,14 @@
 </div>
 
 <div class="grid grid-cols-2 gap-5 mb-8">
-    <div class="bg-gradient-to-br from-navy-950 to-navy-800 rounded-xl p-6 text-white">
+    <a href="{{ url_for('web_admin.organizations') }}" class="block bg-gradient-to-br from-navy-950 to-navy-800 rounded-xl p-6 text-white hover:from-navy-900 hover:to-navy-700 transition">
         <p class="text-steel-300 text-xs uppercase tracking-wide font-medium mb-2">Total Organizations</p>
         <p class="text-3xl font-semibold">{{ total_orgs }}</p>
-    </div>
-    <div class="bg-white rounded-xl border border-steel-200 p-6">
+    </a>
+    <a href="{{ url_for('web_admin.organizations') }}" class="block bg-white rounded-xl border border-steel-200 p-6 hover:border-signal transition">
         <p class="text-steel-400 text-xs uppercase tracking-wide font-medium mb-2">Active Organizations</p>
         <p class="text-3xl font-semibold text-navy-950">{{ active_orgs }}</p>
-    </div>
+    </a>
 </div>
 
 <div class="bg-white rounded-xl border border-steel-200 overflow-hidden">
