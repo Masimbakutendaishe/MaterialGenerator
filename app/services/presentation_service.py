@@ -131,6 +131,16 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
         if speaker_notes:
             slide.notes_slide.notes_text_frame.text = speaker_notes
 
+        image_search_term = slide_content.get("image_search_term")
+        if image_search_term:
+            from app.services.image_service import fetch_stock_photo
+            photo_bytes = fetch_stock_photo(image_search_term)
+            if photo_bytes:
+                try:
+                    slide.shapes.add_picture(BytesIO(photo_bytes), Inches(6.8), Inches(2.2), width=Inches(2.8))
+                except Exception:
+                    pass
+
         if logo_bytes:
             slide.shapes.add_picture(BytesIO(logo_bytes), Inches(8.6), Inches(6.55), height=Inches(0.45))
 

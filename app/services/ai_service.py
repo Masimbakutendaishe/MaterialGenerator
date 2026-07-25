@@ -198,12 +198,19 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "paragraph", "text": "Explanatory text, 100-200 words, plain text no markdown."}},
         {{"type": "scenario", "text": "A detailed, realistic workplace scenario walking through what happens and what the worker should do."}},
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"], ["value", "value"]]}},
-        {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, plain text, e.g. Risk = Likelihood x Severity"}}
+        {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, plain text, e.g. Risk = Likelihood x Severity"}},
+        {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
+        {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo, e.g. 'warehouse worker safety helmet'", "caption": "What this image shows"}}
       ]
     }}
   ],
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>", "<concise takeaway 3>"]
 }}
+
+Include a "diagram" block where a step-by-step process is genuinely central to the topic (3-6 steps).
+Include an "image" block where a real photo would help illustrate a concept (equipment, environment, technique).
+Do not force every section to use every block type — most sections should just be paragraph and
+occasionally scenario; diagrams, tables, formulas, and images are for genuinely relevant cases only.
 
 Each section needs at least one "paragraph" block. Only include "scenario", "table", or "formula" blocks
 where genuinely relevant to that section — do not force them into every section. One section per learning
@@ -248,8 +255,12 @@ explain and expand on the bullets, including one concrete workplace example.
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
   "bullets": ["<short bullet 1>", "<short bullet 2>", "<short bullet 3>"],
-  "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example."
-}}"""
+  "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example.",
+  "image_search_term": "2-4 word search phrase for a relevant photo, or null if this slide doesn't need one"
+}}
+
+Only include image_search_term where a real photo would genuinely support this specific slide's content
+(e.g. equipment, environment, a technique being described) — most slides should have this as null."""
 
     raw_response = _call_model("slide_content", prompt, max_tokens=800, job_id=job_id)
 
@@ -367,14 +378,18 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
     {{
       "heading": "<short section heading>",
       "blocks": [
-        {{"type": "paragraph", "text": "Content appropriate to the document type, 80-150 words."}}
+        {{"type": "paragraph", "text": "Content appropriate to the document type, 80-150 words."}},
+        {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"]]}},
+        {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
+        {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
       ]
     }}
   ],
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>"]
 }}
 
-One section per learning outcome. Plain text only, no markdown."""
+Only include table, diagram, or image blocks where genuinely relevant to this specific document type —
+most sections should just be a paragraph block. One section per learning outcome. Plain text only, no markdown."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)

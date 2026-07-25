@@ -21,6 +21,7 @@ class BaseConfig:
     S3_BUCKET = os.environ.get("S3_BUCKET", "materials")
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+    UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
     
 
 

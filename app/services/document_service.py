@@ -6,6 +6,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from app.services.ai_service import write_chapter_content
+import io
 
 DEFAULT_PRIMARY = "1A5276"
 DEFAULT_SECONDARY = "2874A6"
@@ -98,6 +99,40 @@ def _render_content_block(doc, block, primary_hex, secondary):
         formula_run = formula_p.add_run(block.get("text", ""))
         formula_run.font.size = Pt(13)
         formula_run.font.name = "Consolas"
+
+    elif block_type == "diagram":
+        from app.services.image_service import generate_flow_diagram
+        steps = block.get("steps", [])
+        if steps:
+            try:
+                png_bytes = generate_flow_diagram(steps, primary_hex=primary_hex)
+                img_para = doc.add_paragraph()
+                img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                img_para.add_run().add_picture(io.BytesIO(png_bytes), width=Inches(4.5))
+                if block.get("caption"):
+                    cap_para = doc.add_paragraph()
+                    cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    cap_run = cap_para.add_run(block["caption"])
+                    cap_run.italic = True
+                    cap_run.font.size = Pt(9)
+            except Exception:
+                pass  # never let a diagram failure break the whole document
+
+    elif block_type == "image":
+        from app.services.image_service import fetch_stock_photo
+        search_term = block.get("search_term", "")
+        if search_term:
+            photo_bytes = fetch_stock_photo(search_term)
+            if photo_bytes:
+                img_para = doc.add_paragraph()
+                img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                img_para.add_run().add_picture(io.BytesIO(photo_bytes), width=Inches(4.5))
+                if block.get("caption"):
+                    cap_para = doc.add_paragraph()
+                    cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    cap_run = cap_para.add_run(block["caption"])
+                    cap_run.italic = True
+                    cap_run.font.size = Pt(9)
 
     else:  # paragraph
         for para_text in block.get("text", "").split("\n\n"):
