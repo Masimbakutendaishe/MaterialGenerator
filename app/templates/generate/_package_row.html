@@ -1,0 +1,31 @@
+<tr class="border-b border-steel-100" data-package-id="{{ item.package.id }}">
+    <td class="px-6 py-3 text-navy-950 font-medium">{{ item.title }}</td>
+    <td class="px-6 py-3 text-steel-500 capitalize">{{ item.package.package_type.replace('_', ' ') }}</td>
+    <td class="px-6 py-3">
+        <span class="package-status-label inline-flex items-center gap-1.5 text-xs font-medium
+            {% if item.package.status == 'done' %}text-green-700
+            {% elif item.package.status == 'partial_failure' %}text-amber-700
+            {% else %}text-signal{% endif %}" data-status="{{ item.package.status }}">
+            {% if item.package.status == 'generating' %}
+            <span class="inline-block w-3 h-3 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
+            {% endif %}
+            {{ item.package.status.replace('_', ' ') }}
+        </span>
+    </td>
+    <td class="px-6 py-3 text-right">
+        {% if item.package.status == 'done' %}
+            {% if item.review %}
+                <span class="text-xs font-medium
+                    {% if item.review.status == 'approved' %}text-green-700
+                    {% elif item.review.status == 'changes_requested' %}text-amber-700
+                    {% else %}text-signal{% endif %}">{{ item.review.status.replace('_', ' ') }}</span>
+            {% else %}
+                <form method="POST" action="{{ url_for('generation_web.submit_package_review', package_id=item.package.id) }}" class="inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="text-steel-500 font-medium hover:underline">Submit for Review</button>
+                </form>
+            {% endif %}
+        {% endif %}
+        <a href="{{ url_for('generation_web.package_detail', package_id=item.package.id) }}" class="text-signal font-medium hover:underline ml-3">View Documents</a>
+    </td>
+</tr>

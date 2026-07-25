@@ -16,8 +16,8 @@ def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
 
 
 def build_assessment_docx(title: str, units: list, organization_name: str = None,
-                           seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
-                           brand_colors: dict = None) -> BytesIO:
+                         seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
+                         brand_colors: dict = None, job_id: str = None) -> BytesIO:
     brand_colors = brand_colors or {}
     primary = _hex_to_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
 
@@ -65,7 +65,7 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
         heading_run.font.size = Pt(16)
         heading_run.font.color.rgb = primary
 
-        result = generate_assessment_questions(unit_name, outcomes, seta=seta, nqf_level=nqf_level)
+        result = generate_assessment_questions(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
         questions = result.get("questions", [])
 
         for q in questions:

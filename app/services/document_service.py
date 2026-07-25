@@ -141,7 +141,7 @@ def _set_default_font(doc: Document):
 
 def build_textbook_docx(title: str, units: list, organization_name: str = None,
                          seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
-                         brand_colors: dict = None) -> BytesIO:
+                         brand_colors: dict = None, job_id: str = None) -> BytesIO:
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
@@ -250,7 +250,7 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
 
         doc.add_paragraph()
 
-        chapter = write_chapter_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level)
+        chapter = write_chapter_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
 
         if chapter.get("intro"):
             intro_p = doc.add_paragraph()

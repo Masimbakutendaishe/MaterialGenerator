@@ -17,9 +17,10 @@ def _repair_json_string(raw: str) -> str:
     an invalid escape."""
     return re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
 
-def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 5) -> str:
+def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 8, job_id: str = None) -> str:
     """Routes a prompt to whichever provider/model is configured for this task.
-    Retries automatically on rate limits (common on free tiers), with backoff."""
+    Retries automatically on rate limits, with backoff matching the provider's stated wait time.
+    If job_id is given, checks between retries whether the job was cancelled and aborts early."""
     routing = get_model_for_task(task)
     provider = routing["provider"]
     model = routing["model"]
@@ -57,13 +58,36 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
             last_error = exc
             error_str = str(exc)
             if "rate_limit" in error_str or "429" in error_str:
-                wait_time = min(10 * (attempt + 1), 60)  # back off progressively, cap at 60s
+                wait_match = re.search(r'try again in (?:(\d+)m)?([\d.]+)s', error_str)
+                if wait_match:
+                    minutes = int(wait_match.group(1)) if wait_match.group(1) else 0
+                    seconds = float(wait_match.group(2))
+                    wait_time = minutes * 60 + seconds + 3
+                else:
+                    wait_time = min(10 * (attempt + 1), 60)
+                wait_time = min(wait_time, 600)
+
+                if job_id:
+                    from app.models.generation_job import GenerationJob
+                    from app.extensions import db
+                    db.session.expire_all()
+                    job = GenerationJob.query.get(job_id)
+                    if job and job.status == "cancelled":
+                        raise RuntimeError("Job was cancelled during retry wait")
+
+                print(f"[RATE LIMIT] Attempt {attempt + 1}/{max_retries} — waiting {wait_time:.0f}s before retry...")
                 time.sleep(wait_time)
+
+                if job_id:
+                    db.session.expire_all()
+                    job = GenerationJob.query.get(job_id)
+                    if job and job.status == "cancelled":
+                        raise RuntimeError("Job was cancelled during retry wait")
+
                 continue
-            raise  # non-rate-limit errors fail immediately, no point retrying
+            raise
 
     raise RuntimeError(f"AI call failed after {max_retries} retries (rate limited): {last_error}")
-
 
 def generate_syllabus(topic: str, seta: str = None, nqf_level: str = None) -> dict:
     """Generates a structured syllabus (units + learning outcomes) for a given topic."""
@@ -138,7 +162,7 @@ Preserve the original structure and wording as closely as possible — this is r
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
 
 
-def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
+def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Writes full chapter content for one syllabus unit. Returns a structured dict where
     each section is a list of typed content blocks (paragraph, scenario, table, formula)
     so the document builder can render each one with distinct, appropriate styling."""
@@ -186,7 +210,7 @@ where genuinely relevant to that section — do not force them into every sectio
 outcome. Plain text only inside strings — no asterisks, no markdown headers."""
 
     for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=4500)
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=4500, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
@@ -197,7 +221,7 @@ outcome. Plain text only inside strings — no asterisks, no markdown headers.""
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
+def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Expands a syllabus unit into real slide content: a few genuinely useful bullets
     per slide plus speaker notes, rather than just repeating the raw outcomes."""
     outcomes_text = "\n".join(f"- {o}" for o in outcomes)
@@ -227,7 +251,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
   "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example."
 }}"""
 
-    raw_response = _call_model("slide_content", prompt, max_tokens=800)
+    raw_response = _call_model("slide_content", prompt, max_tokens=800, job_id=job_id)
 
     try:
         return json.loads(raw_response)
@@ -237,7 +261,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
 
-def generate_assessment_questions(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None) -> dict:
+def generate_assessment_questions(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Generates test questions for one syllabus unit, covering its learning outcomes.
     Returns structured JSON so the docx builder can render blank space and marks per question."""
     outcomes_text = "\n".join(f"- {o}" for o in outcomes)
@@ -289,9 +313,77 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 "blank_lines" for short_answer/scenario suggests how many ruled lines to leave for the answer.
 For multiple_choice, omit "blank_lines"."""
 
-    raw_response = _call_model("textbook_writing", prompt, max_tokens=3000)
+    raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)
 
     try:
         return json.loads(raw_response)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+
+DOCUMENT_PROMPT_FRAMING = {
+    "learner_manual": "a Learner Manual — the core training content the learner studies to gain the knowledge and skills required by the unit standard",
+    "facilitator_guide": "a Facilitator Guide — delivery notes for the trainer: lesson objectives, timing, preparation notes, and delivery instructions for facilitating this unit",
+    "formative_assessment": "a Formative Assessment — ongoing, low-stakes questions and activities used to check understanding as the learner progresses through this unit",
+    "summative_assessment": "a Summative Assessment — formal end-of-unit questions and practical tasks used to certify competence in this unit",
+    "assessment_guide": "an Assessment Guide — guidance for the Assessor on how to conduct and mark the assessment for this unit, including an evidence checklist",
+    "moderator_guide": "a Moderator Guide — a checklist and guidance for the Moderator reviewing an Assessor's judgements for this unit",
+    "poe_guide": "a Portfolio of Evidence Guide — instructions for the learner on what evidence to collect and how to compile it for this unit",
+    "learner_induction_guide": "a Learner Induction Guide — an orientation document introducing the learner to the NQF learning approach, their rights and responsibilities, appeals procedures, and how assessment and certification work for this specific programme",
+    "programme_strategy": "a Programme Strategy document — explains how the training programme's delivery and assessment strategy aligns with the outcomes of this unit, including delivery methods and resource requirements",
+    "programme_alignment_matrix": "a Programme Alignment Matrix — a structured breakdown showing how this unit's learning outcomes align to assessment strategy and notional learning hours",
+}
+
+
+def generate_guide_section_content(document_subtype: str, unit_name: str, outcomes: list,
+                                    seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+    """Generates section content for one unit of a SETA guide-style document
+    (facilitator guide, assessment guide, etc). Shares the same block-typed shape
+    as chapter content, but the prompt framing changes per document type."""
+    framing = DOCUMENT_PROMPT_FRAMING.get(document_subtype, "a training support document")
+    outcomes_text = "\n".join(f"- {o}" for o in outcomes)
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    prompt = f"""You are writing content for {framing}, for a South African SETA/QCTO-accredited
+workplace training programme.
+
+Unit: {unit_name}
+{chr(10).join(context_lines)}
+
+This unit covers these learning outcomes:
+{outcomes_text}
+
+Write content appropriate to this specific document type — not generic textbook prose. Be practical
+and specific to the role this document plays (e.g. a facilitator guide gives delivery instructions,
+not learner-facing explanations; an assessment guide gives marking guidance, not questions themselves).
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "intro": "1-2 sentence introduction to this section",
+  "sections": [
+    {{
+      "heading": "<short section heading>",
+      "blocks": [
+        {{"type": "paragraph", "text": "Content appropriate to the document type, 80-150 words."}}
+      ]
+    }}
+  ],
+  "key_points": ["<concise takeaway 1>", "<concise takeaway 2>"]
+}}
+
+One section per learning outcome. Plain text only, no markdown."""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue

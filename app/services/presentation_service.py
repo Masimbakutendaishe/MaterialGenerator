@@ -66,7 +66,7 @@ def _add_footer_band(slide, prs, organization_name: str, primary: RGBColor):
 
 def build_presentation_pptx(title: str, units: list, organization_name: str = None,
                              brand_colors: dict = None, seta: str = None, nqf_level: str = None,
-                             logo_bytes: bytes = None) -> BytesIO:
+                             logo_bytes: bytes = None, job_id: str = None) -> BytesIO:
     brand_colors = brand_colors or {}
     primary = _hex_to_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(brand_colors.get("secondary"), DEFAULT_SECONDARY)
@@ -102,7 +102,7 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
         unit_name = unit.get("name", "Unit")
         outcomes = unit.get("outcomes", [])
 
-        slide_content = generate_slide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level)
+        slide_content = generate_slide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
         bullets = slide_content.get("bullets", outcomes)
 
         slide = prs.slides.add_slide(bullet_layout)

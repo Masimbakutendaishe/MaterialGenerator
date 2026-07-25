@@ -91,11 +91,11 @@ def cancel(job_id):
     job = GenerationJob.query.filter_by(id=job_id, organization_id=current_user.organization_id).first()
     if not job:
         flash("Job not found.")
-        return redirect(url_for("generation_web.index"))
+        return redirect(request.referrer or url_for("generation_web.index"))
 
     if job.status in ("done", "failed", "cancelled"):
         flash("This job can no longer be cancelled.")
-        return redirect(url_for("generation_web.index"))
+        return redirect(request.referrer or url_for("generation_web.index"))
 
     if job.task_id:
         celery_app.control.revoke(job.task_id, terminate=True)
@@ -104,7 +104,7 @@ def cancel(job_id):
     db.session.commit()
 
     flash("Generation cancelled.")
-    return redirect(url_for("generation_web.index"))
+    return redirect(request.referrer or url_for("generation_web.index"))
 
 
 @generation_web_bp.route("/status/<job_id>")
@@ -286,3 +286,50 @@ def package_detail(package_id):
     can_download = not review or review.status == "approved"
 
     return render_template("generate/package_detail.html", package=package, syllabus=syllabus, review=review, can_download=can_download)
+
+
+@generation_web_bp.route("/package-status/<package_id>")
+@login_required
+def package_status(package_id):
+    from app.models.material_package import MaterialPackage
+    db.session.expire_all()
+    package = MaterialPackage.query.filter_by(id=package_id, organization_id=current_user.organization_id).first()
+    if not package:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"package_id": package.id, "status": package.status})
+
+
+@generation_web_bp.route("/package-row/<package_id>")
+@login_required
+def package_row_partial(package_id):
+    from app.models.material_package import MaterialPackage
+    package = MaterialPackage.query.filter_by(id=package_id, organization_id=current_user.organization_id).first_or_404()
+    syllabus = Syllabus.query.get(package.syllabus_id)
+    review = MaterialReview.query.filter_by(package_id=package.id).first()
+    return render_template(
+        "generate/_package_row.html",
+        item={"package": package, "title": syllabus.title if syllabus else "Unknown", "review": review},
+    )
+
+@generation_web_bp.route("/package/<package_id>/cancel-all", methods=["POST"])
+@login_required
+def cancel_package(package_id):
+    from app.models.material_package import MaterialPackage
+    from app.extensions import celery_app
+
+    package = MaterialPackage.query.filter_by(id=package_id, organization_id=current_user.organization_id).first()
+    if not package:
+        flash("Package not found.")
+        return redirect(url_for("generation_web.index"))
+
+    cancelled_count = 0
+    for job in package.jobs:
+        if job.status in ("queued", "running"):
+            if job.task_id:
+                celery_app.control.revoke(job.task_id, terminate=True)
+            job.status = "cancelled"
+            cancelled_count += 1
+
+    db.session.commit()
+    flash(f"Cancelled {cancelled_count} document(s) still in progress.")
+    return redirect(url_for("generation_web.package_detail", package_id=package_id))

@@ -1,10 +1,18 @@
 {% extends "base.html" %}
 {% block title %}Package{% endblock %}
 {% block content %}
-<div class="mb-8 pb-6 border-b border-steel-200">
-    <a href="{{ url_for('generation_web.index') }}" class="text-signal text-sm hover:underline">&larr; Generate</a>
-    <h1 class="text-xl font-semibold text-navy-950 mt-1">{{ syllabus.title if syllabus else 'Package' }}</h1>
-    <p class="text-steel-500 mt-1 text-sm capitalize">{{ package.package_type.replace('_', ' ') }} — {{ package.status.replace('_', ' ') }}</p>
+<div class="mb-8 pb-6 border-b border-steel-200 flex justify-between items-start">
+    <div>
+        <a href="{{ url_for('generation_web.index') }}" class="text-signal text-sm hover:underline">&larr; Generate</a>
+        <h1 class="text-xl font-semibold text-navy-950 mt-1">{{ syllabus.title if syllabus else 'Package' }}</h1>
+        <p class="text-steel-500 mt-1 text-sm capitalize">{{ package.package_type.replace('_', ' ') }} — {{ package.status.replace('_', ' ') }}</p>
+    </div>
+    {% if package.status == 'generating' %}
+    <form method="POST" action="{{ url_for('generation_web.cancel_package', package_id=package.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="text-red-600 border border-red-300 px-4 py-2 rounded text-sm font-medium hover:bg-red-50 transition">Cancel All</button>
+    </form>
+    {% endif %}
 </div>
 
 {% if review and review.status != 'approved' %}
@@ -27,16 +35,28 @@
             <tr class="border-b border-steel-100">
                 <td class="px-6 py-3 text-navy-950 font-medium capitalize">{{ job.document_subtype.replace('_', ' ') }}</td>
                 <td class="px-6 py-3">
-                    <span class="text-xs font-medium
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium
                         {% if job.status == 'done' %}text-green-700
-                        {% elif job.status == 'failed' %}text-red-700
-                        {% else %}text-signal{% endif %}">{{ job.status }}</span>
+                        {% elif job.status in ('failed', 'cancelled') %}text-red-700
+                        {% else %}text-signal{% endif %}">
+                        {% if job.status in ('queued', 'running') %}
+                        <span class="inline-block w-3 h-3 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
+                        {% endif %}
+                        {{ job.status }}
+                    </span>
                 </td>
                 <td class="px-6 py-3 text-right">
                     {% if job.status == 'done' and can_download %}
                         <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline">Download</a>
                     {% elif job.status == 'failed' %}
                         <span class="text-red-600 text-xs">{{ job.error_message or 'Failed' }}</span>
+                    {% elif job.status in ('queued', 'running') %}
+                        <form method="POST" action="{{ url_for('generation_web.cancel', job_id=job.id) }}" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-red-600 font-medium hover:underline text-xs">Cancel</button>
+                        </form>
+                    {% elif job.status == 'cancelled' %}
+                        <span class="text-steel-400 text-xs">Cancelled</span>
                     {% endif %}
                 </td>
             </tr>

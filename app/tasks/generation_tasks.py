@@ -7,6 +7,8 @@ from app.services.document_service import build_textbook_docx
 from app.services.presentation_service import build_presentation_pptx
 from app.services.storage_service import upload_file, download_file
 from app.models.review import Notification
+from app.services.guide_document_service import build_guide_docx
+from functools import partial
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -35,6 +37,7 @@ def generate_textbook_task(job_id: str):
             nqf_level=accreditation.get("nqf_level"),
             logo_bytes=logo_bytes,
             brand_colors=organization.brand_colors if organization else None,
+            job_id=job.id,
         )
 
         storage_key = f"{job.organization_id}/{job.id}.docx"
@@ -88,6 +91,7 @@ def generate_presentation_task(job_id: str):
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),
             logo_bytes=logo_bytes,
+            job_id=job.id,
         )
 
         storage_key = f"{job.organization_id}/{job.id}.pptx"
@@ -119,7 +123,18 @@ DOCUMENT_BUILDERS = {
     "textbook": (build_textbook_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "presentation": (build_presentation_pptx, "pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
     "assessment": (build_assessment_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "learner_manual": (partial(build_guide_docx, document_subtype="learner_manual"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "facilitator_guide": (partial(build_guide_docx, document_subtype="facilitator_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "formative_assessment": (partial(build_guide_docx, document_subtype="formative_assessment"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "summative_assessment": (partial(build_guide_docx, document_subtype="summative_assessment"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "assessment_guide": (partial(build_guide_docx, document_subtype="assessment_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "moderator_guide": (partial(build_guide_docx, document_subtype="moderator_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "poe_guide": (partial(build_guide_docx, document_subtype="poe_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "learner_induction_guide": (partial(build_guide_docx, document_subtype="learner_induction_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "programme_strategy": (partial(build_guide_docx, document_subtype="programme_strategy"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "programme_alignment_matrix": (partial(build_guide_docx, document_subtype="programme_alignment_matrix"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
 }
+
 
 
 @celery_app.task(name="generate_package_document_task")
@@ -160,6 +175,7 @@ def generate_package_document_task(job_id: str):
             nqf_level=accreditation.get("nqf_level"),
             logo_bytes=logo_bytes,
             brand_colors=organization.brand_colors if organization else None,
+            job_id=job.id,
         )
 
         storage_key = f"{job.organization_id}/{job.package_id}/{subtype}.{ext}"
