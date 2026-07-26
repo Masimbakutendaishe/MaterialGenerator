@@ -11,45 +11,6 @@ from app.services.storage_service import get_presigned_url
 generation_web_bp = Blueprint("generation_web", __name__, url_prefix="/generate")
 
 
-@generation_web_bp.route("/")
-@login_required
-def index():
-    from app.models.material_package import MaterialPackage
-    from app.models.review import Notification
-
-    Notification.query.filter_by(recipient_user_id=current_user.id, is_read=False).filter(
-        Notification.link_job_id.isnot(None)
-    ).update({"is_read": True})
-    db.session.commit()
-
-    syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).order_by(Syllabus.created_at.desc()).all()
-
-    # Packages (grouped generations)
-    packages = MaterialPackage.query.filter_by(organization_id=current_user.organization_id).order_by(
-        MaterialPackage.created_at.desc()
-    ).limit(10).all()
-    package_data = []
-    for pkg in packages:
-        syllabus = Syllabus.query.get(pkg.syllabus_id)
-        review = MaterialReview.query.filter_by(package_id=pkg.id).first()
-        package_data.append({"package": pkg, "title": syllabus.title if syllabus else "Unknown", "review": review})
-
-    # Standalone jobs (not part of a package) — today's existing single-document generations
-    jobs = GenerationJob.query.filter_by(organization_id=current_user.organization_id, package_id=None).order_by(
-        GenerationJob.created_at.desc()
-    ).limit(20).all()
-    job_syllabus_titles = {}
-    job_reviews = {}
-    for job in jobs:
-        syllabus = Syllabus.query.get(job.syllabus_id)
-        job_syllabus_titles[job.id] = syllabus.title if syllabus else "Unknown"
-        job_reviews[job.id] = MaterialReview.query.filter_by(generation_job_id=job.id).first()
-
-    return render_template(
-        "generate/index.html", syllabi=syllabi, jobs=jobs,
-        job_syllabus_titles=job_syllabus_titles, job_reviews=job_reviews, packages=package_data,
-    )
-
 
 @generation_web_bp.route("/trigger", methods=["POST"])
 @login_required
@@ -336,3 +297,47 @@ def cancel_package(package_id):
     db.session.commit()
     flash(f"Cancelled {cancelled_count} document(s) still in progress.")
     return redirect(url_for("generation_web.package_detail", package_id=package_id))
+
+@generation_web_bp.route("/")
+@login_required
+def index():
+    from app.models.material_package import MaterialPackage
+    from app.models.review import Notification
+
+    Notification.query.filter_by(recipient_user_id=current_user.id, is_read=False).filter(
+        Notification.link_job_id.isnot(None)
+    ).update({"is_read": True})
+    db.session.commit()
+
+    syllabus_query = Syllabus.query.filter_by(organization_id=current_user.organization_id)
+    if current_user.role == "user":
+        syllabus_query = syllabus_query.filter_by(created_by_user_id=current_user.id)
+    syllabi = syllabus_query.order_by(Syllabus.created_at.desc()).all()
+
+    package_query = MaterialPackage.query.filter_by(organization_id=current_user.organization_id)
+    if current_user.role == "user":
+        package_query = package_query.filter_by(triggered_by_user_id=current_user.id)
+    packages = package_query.order_by(MaterialPackage.created_at.desc()).limit(10).all()
+
+    package_data = []
+    for pkg in packages:
+        syllabus = Syllabus.query.get(pkg.syllabus_id)
+        review = MaterialReview.query.filter_by(package_id=pkg.id).first()
+        package_data.append({"package": pkg, "title": syllabus.title if syllabus else "Unknown", "review": review})
+
+    job_query = GenerationJob.query.filter_by(organization_id=current_user.organization_id, package_id=None)
+    if current_user.role == "user":
+        job_query = job_query.filter_by(triggered_by_user_id=current_user.id)
+    jobs = job_query.order_by(GenerationJob.created_at.desc()).limit(20).all()
+
+    job_syllabus_titles = {}
+    job_reviews = {}
+    for job in jobs:
+        syllabus = Syllabus.query.get(job.syllabus_id)
+        job_syllabus_titles[job.id] = syllabus.title if syllabus else "Unknown"
+        job_reviews[job.id] = MaterialReview.query.filter_by(generation_job_id=job.id).first()
+
+    return render_template(
+        "generate/index.html", syllabi=syllabi, jobs=jobs,
+        job_syllabus_titles=job_syllabus_titles, job_reviews=job_reviews, packages=package_data,
+    )

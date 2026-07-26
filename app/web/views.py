@@ -24,6 +24,8 @@ def login():
             from flask import session
             session.permanent = True
             login_user(user)
+            if user.must_change_password:
+                return redirect(url_for("web.force_change_password"))
             return redirect(url_for("web.dashboard"))
 
         flash("Invalid email or password.")
@@ -74,22 +76,37 @@ def dashboard():
 
     # user / org_admin
     from app.models.review import MaterialReview
-    recent_jobs = GenerationJob.query.filter_by(organization_id=current_user.organization_id).order_by(
-        GenerationJob.created_at.desc()
-    ).limit(5).all()
+    is_regular_user = current_user.role == "user"
+
+    job_query = GenerationJob.query.filter_by(organization_id=current_user.organization_id)
+    if is_regular_user:
+        job_query = job_query.filter_by(triggered_by_user_id=current_user.id)
+    recent_jobs = job_query.order_by(GenerationJob.created_at.desc()).limit(5).all()
+
     job_data = []
     for job in recent_jobs:
         syllabus = Syllabus.query.get(job.syllabus_id)
         review = MaterialReview.query.filter_by(generation_job_id=job.id).first()
         job_data.append({"job": job, "title": syllabus.title if syllabus else "Unknown", "review": review})
 
-    recent_syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).order_by(
-        Syllabus.created_at.desc()
-    ).limit(5).all()
+    syllabus_query = Syllabus.query.filter_by(organization_id=current_user.organization_id)
+    if is_regular_user:
+        syllabus_query = syllabus_query.filter_by(created_by_user_id=current_user.id)
+    recent_syllabi = syllabus_query.order_by(Syllabus.created_at.desc()).limit(5).all()
 
-    total_syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).count()
-    total_materials = GenerationJob.query.filter_by(organization_id=current_user.organization_id, status="done").count()
-    total_approved = MaterialReview.query.filter_by(organization_id=current_user.organization_id, status="approved").count()
+    total_syllabi_query = Syllabus.query.filter_by(organization_id=current_user.organization_id)
+    total_materials_query = GenerationJob.query.filter_by(organization_id=current_user.organization_id, status="done")
+    total_approved_query = MaterialReview.query.filter_by(organization_id=current_user.organization_id, status="approved")
+
+    if is_regular_user:
+        total_syllabi_query = total_syllabi_query.filter_by(created_by_user_id=current_user.id)
+        total_materials_query = total_materials_query.filter_by(triggered_by_user_id=current_user.id)
+        # MaterialReview has no triggered_by field directly — scope via submitted_by_user_id instead
+        total_approved_query = total_approved_query.filter_by(submitted_by_user_id=current_user.id)
+
+    total_syllabi = total_syllabi_query.count()
+    total_materials = total_materials_query.count()
+    total_approved = total_approved_query.count()
 
     return render_template(
         "dashboard_user.html", jobs=job_data, syllabi=recent_syllabi, picture_url=picture_url,
@@ -202,3 +219,29 @@ def profile():
     from app.services.storage_service import get_presigned_url
     picture_url = get_presigned_url(current_user.profile_picture_url, expires_in=300) if current_user.profile_picture_url else None
     return render_template("profile.html", picture_url=picture_url)
+
+
+@web_bp.route("/force-change-password", methods=["GET", "POST"])
+@login_required
+def force_change_password():
+    if not current_user.must_change_password:
+        return redirect(url_for("web.dashboard"))
+
+    if request.method == "POST":
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+
+        if not new_password or len(new_password) < 8:
+            flash("Password must be at least 8 characters.")
+            return redirect(url_for("web.force_change_password"))
+        if new_password != confirm_password:
+            flash("Passwords do not match.")
+            return redirect(url_for("web.force_change_password"))
+
+        current_user.set_password(new_password)
+        current_user.must_change_password = False
+        db.session.commit()
+        flash("Password updated.")
+        return redirect(url_for("web.dashboard"))
+
+    return render_template("force_change_password.html")

@@ -41,7 +41,8 @@ def create_organization():
 def organization_detail(org_id):
     org = Organization.query.get_or_404(org_id)
     users = User.query.filter_by(organization_id=org_id).order_by(User.created_at.desc()).all()
-    return render_template("admin/organization_detail.html", org=org, users=users, valid_roles=VALID_ROLES)
+    qa_reviewers = User.query.filter_by(organization_id=org_id, role="qa_reviewer").all()
+    return render_template("admin/organization_detail.html", org=org, users=users, valid_roles=VALID_ROLES, qa_reviewers=qa_reviewers)
 
 
 @web_admin_bp.route("/organizations/<org_id>/toggle", methods=["POST"])
@@ -74,7 +75,7 @@ def create_user(org_id):
         flash(f"A user with email '{email}' already exists.")
         return redirect(url_for("web_admin.organization_detail", org_id=org_id))
 
-    user = User(organization_id=org_id, email=email, role=role)
+    user = User(organization_id=org_id, email=email, role=role, must_change_password=True)
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -122,3 +123,20 @@ def deny_password_reset(request_id):
     db.session.commit()
     flash("Reset request denied.")
     return redirect(url_for("web_admin.password_resets"))
+
+@web_admin_bp.route("/users/<user_id>/set-reports-to", methods=["POST"])
+@superadmin_required
+def set_reports_to(user_id):
+    user = User.query.get_or_404(user_id)
+    reports_to_user_id = request.form.get("reports_to_user_id") or None
+
+    if reports_to_user_id:
+        supervisor = User.query.filter_by(id=reports_to_user_id, organization_id=user.organization_id, role="qa_reviewer").first()
+        if not supervisor:
+            flash("Invalid QA reviewer selection.")
+            return redirect(url_for("web_admin.organization_detail", org_id=user.organization_id))
+
+    user.reports_to_user_id = reports_to_user_id
+    db.session.commit()
+    flash(f"Updated who {user.email} reports to.")
+    return redirect(url_for("web_admin.organization_detail", org_id=user.organization_id))

@@ -25,6 +25,7 @@ class User(db.Model, UserMixin):
     reports_to_user_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False)
 
     organization = db.relationship("Organization", back_populates="users")
     reports_to = db.relationship("User", remote_side=[id], backref="direct_reports")

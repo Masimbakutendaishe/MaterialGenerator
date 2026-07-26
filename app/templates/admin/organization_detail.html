@@ -62,6 +62,7 @@
             <tr>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Email</th>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Role</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Reports To</th>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Status</th>
                 <th class="text-right px-6 py-3"></th>
             </tr>
@@ -71,6 +72,21 @@
             <tr class="border-b border-steel-100 hover:bg-steel-50 transition">
                 <td class="px-6 py-3 text-navy-950">{{ u.email }}</td>
                 <td class="px-6 py-3 text-steel-500">{{ u.role }}</td>
+                <td class="px-6 py-3">
+                    {% if u.role == 'user' %}
+                    <form method="POST" action="{{ url_for('web_admin.set_reports_to', user_id=u.id) }}" class="flex items-center gap-2">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="reports_to_user_id" onchange="this.form.submit()" class="text-xs border border-steel-200 rounded px-2 py-1">
+                            <option value="">— None —</option>
+                            {% for qa in qa_reviewers %}
+                            <option value="{{ qa.id }}" {{ 'selected' if u.reports_to_user_id == qa.id else '' }}>{{ qa.email }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    {% else %}
+                    <span class="text-steel-300 text-xs">—</span>
+                    {% endif %}
+                </td>
                 <td class="px-6 py-3">
                     {% if u.is_active %}
                         <span class="text-green-700 text-xs font-medium">Active</span>

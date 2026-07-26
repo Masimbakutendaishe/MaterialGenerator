@@ -12,7 +12,10 @@ syllabus_web_bp = Blueprint("syllabus_web", __name__, url_prefix="/syllabus")
 @syllabus_web_bp.route("/")
 @login_required
 def list_syllabi():
-    syllabi = Syllabus.query.filter_by(organization_id=current_user.organization_id).order_by(Syllabus.created_at.desc()).all()
+    query = Syllabus.query.filter_by(organization_id=current_user.organization_id)
+    if current_user.role == "user":
+        query = query.filter_by(created_by_user_id=current_user.id)
+    syllabi = query.order_by(Syllabus.created_at.desc()).all()
     return render_template("syllabus/list.html", syllabi=syllabi)
 
 
@@ -133,8 +136,12 @@ def create_ai():
     return redirect(url_for("syllabus_web.list_syllabi"))
 
 
+
 @syllabus_web_bp.route("/<syllabus_id>")
 @login_required
 def detail(syllabus_id):
     syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first_or_404()
+    if current_user.role == "user" and syllabus.created_by_user_id != current_user.id:
+        flash("You do not have access to that syllabus.")
+        return redirect(url_for("syllabus_web.list_syllabi"))
     return render_template("syllabus/detail.html", syllabus=syllabus)
