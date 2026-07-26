@@ -19,11 +19,22 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="w-48">
+        <div class="w-64">
             <label class="block text-sm font-medium text-steel-500 mb-1.5">Type</label>
             <select name="material_type" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
                 <option value="textbook">Textbook (Word)</option>
                 <option value="presentation">Presentation (PowerPoint)</option>
+                <option value="assessment">Assessment</option>
+                <option value="learner_manual">Learner Manual</option>
+                <option value="facilitator_guide">Facilitator Guide</option>
+                <option value="formative_assessment">Formative Assessment</option>
+                <option value="summative_assessment">Summative Assessment</option>
+                <option value="assessment_guide">Assessment Guide</option>
+                <option value="moderator_guide">Moderator Guide</option>
+                <option value="poe_guide">Portfolio of Evidence Guide</option>
+                <option value="learner_induction_guide">Learner Induction Guide</option>
+                <option value="programme_strategy">Programme Strategy</option>
+                <option value="programme_alignment_matrix">Programme Alignment Matrix</option>
             </select>
         </div>
         <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Generate</button>

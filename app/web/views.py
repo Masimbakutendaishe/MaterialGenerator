@@ -21,6 +21,8 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password) and user.is_active:
+            from flask import session
+            session.permanent = True
             login_user(user)
             return redirect(url_for("web.dashboard"))
 

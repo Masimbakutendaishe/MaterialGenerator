@@ -54,6 +54,8 @@ def index():
 @generation_web_bp.route("/trigger", methods=["POST"])
 @login_required
 def trigger():
+    from app.tasks.generation_tasks import generate_package_document_task, DOCUMENT_BUILDERS
+
     syllabus_id = request.form.get("syllabus_id")
     material_type = request.form.get("material_type")
 
@@ -62,24 +64,25 @@ def trigger():
         flash("Syllabus not found.")
         return redirect(url_for("generation_web.index"))
 
+    if material_type not in DOCUMENT_BUILDERS:
+        flash("Invalid document type.")
+        return redirect(url_for("generation_web.index"))
+
     job = GenerationJob(
         organization_id=current_user.organization_id,
         syllabus_id=syllabus_id,
         material_type=material_type,
+        document_subtype=material_type,
         triggered_by_user_id=current_user.id,
     )
     db.session.add(job)
     db.session.commit()
 
-    if material_type == "textbook":
-        async_result = generate_textbook_task.delay(job.id)
-    else:
-        async_result = generate_presentation_task.delay(job.id)
-
+    async_result = generate_package_document_task.delay(job.id)
     job.task_id = async_result.id
     db.session.commit()
 
-    flash(f"Generating {material_type} for '{syllabus.title}'...")
+    flash(f"Generating {material_type.replace('_', ' ')} for '{syllabus.title}'...")
     return redirect(url_for("generation_web.index"))
 
 

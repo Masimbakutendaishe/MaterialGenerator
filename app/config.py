@@ -2,6 +2,7 @@
 """Config classes for each environment. Never hardcode secrets here — always from env vars."""
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
 
 load_dotenv()
 
@@ -22,6 +23,7 @@ class BaseConfig:
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
     UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY")
+    PERMANENT_SESSION_LIFETIME = timedelta(minutes=20)
     
 
 

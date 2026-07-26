@@ -149,6 +149,20 @@
         updateNotifBadge();
         setInterval(updateNotifBadge, 15000);
     </script>
+
+    <script>
+        let inactivityTimer;
+        function resetInactivityTimer() {
+            clearTimeout(inactivityTimer);
+            inactivityTimer = setTimeout(() => {
+                document.getElementById('session-timeout-modal').classList.remove('hidden');
+            }, 20 * 60 * 1000); // 20 minutes, matches PERMANENT_SESSION_LIFETIME
+        }
+        ['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt =>
+            document.addEventListener(evt, resetInactivityTimer)
+        );
+        resetInactivityTimer();
+    </script>
     {% endif %}
 
     <main class="max-w-6xl mx-auto p-8">
@@ -162,6 +176,14 @@
 
         {% block content %}{% endblock %}
     </main>
+    
+    <div id="session-timeout-modal" class="hidden fixed inset-0 bg-navy-950 bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-8 text-center max-w-sm">
+            <p class="text-navy-950 font-semibold mb-2">Session Expired</p>
+            <p class="text-steel-500 text-sm mb-6">You've been logged out due to inactivity.</p>
+            <a href="{{ url_for('web.logout') }}" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm inline-block">OK</a>
+        </div>
+    </div>
 
     <div id="loading-overlay" class="hidden fixed inset-0 bg-navy-950 bg-opacity-80 z-50 flex items-center justify-center">
         <div class="bg-white rounded-lg p-8 text-center max-w-sm">

@@ -178,7 +178,10 @@ def generate_package_document_task(job_id: str):
             job_id=job.id,
         )
 
-        storage_key = f"{job.organization_id}/{job.package_id}/{subtype}.{ext}"
+        if job.package_id:
+            storage_key = f"{job.organization_id}/{job.package_id}/{subtype}.{ext}"
+        else:
+            storage_key = f"{job.organization_id}/{job.id}.{ext}"
         upload_file(file_bytes=buffer.getvalue(), key=storage_key, content_type=content_type)
 
         job.result_file_path = storage_key
