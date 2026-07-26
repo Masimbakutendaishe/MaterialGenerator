@@ -17,6 +17,7 @@ def create_app(config_name=None):
     migrate.init_app(app, db)
     jwt.init_app(app)
     login_manager.init_app(app)
+    login_manager.login_view = "web.login"
 
     from app.models.user import User
 
