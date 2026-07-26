@@ -174,7 +174,7 @@ def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_
         context_lines.append(f"NQF Level: {nqf_level}")
 
     prompt = f"""You are a subject-matter expert writing a chapter for a South African
-SETA/QCTO-accredited training textbook.
+SETA/QCTO-accredited training textbook, in the style of real accredited SETA learner guides.
 
 Chapter: {unit_name}
 {chr(10).join(context_lines)}
@@ -182,19 +182,31 @@ Chapter: {unit_name}
 Learning outcomes this chapter must cover:
 {outcomes_text}
 
-Write technically accurate, specific content grounded in the ACTUAL subject matter of this unit —
-do not force unrelated industrial, workplace-safety, or manufacturing framing onto topics that aren't
-about that (e.g. a programming or IT topic should use programming examples, not steel plants or mining).
+Write content grounded in the ACTUAL subject matter of this unit — do not force unrelated
+industrial, workplace-safety, or manufacturing framing onto topics that aren't about that
+(e.g. a programming or IT topic should use programming examples, not steel plants or mining).
 
-CRITICAL — never invent specific standard numbers, unit standard IDs, SANS numbers, or regulatory
-citations. Only reference a real standard/regulation by name if you are confident it genuinely exists
-and applies — otherwise describe the general principle in plain language without a fabricated citation
-attached to it. A vague-but-true statement is always better than a specific-but-invented one.
+CITATIONS: If this topic genuinely involves South African law or regulation (e.g. finance, HR,
+health and safety), you may cite REAL acts/sections you are confident actually exist (e.g.
+"Pension Funds Act 24 of 1956", "Section 11(k)(i)"), and explicitly state you are scoping to
+the relevant ones for this chapter. If the topic does NOT involve law/regulation (e.g. a technical
+or IT skill), do not invent or reference any legislation at all — just teach the subject directly.
+Never invent a specific act name, section number, or standard number you are not confident is real.
+
+STRUCTURE, matching real accredited learner guides:
+- Open with a scope statement: what this chapter covers, as an info_box block with bullet items
+- Each section should be genuinely detailed — several paragraphs, not a shallow gloss
+- Where the topic has real formulas/calculations, always include a variable legend (what each
+  symbol means), not a bare formula
+- Where comparing multiple options/approaches, use a real comparative table (not a single-column list)
+- Where relevant, include Advantages/Disadvantages as a clearly labelled paragraph or info_box
+- Address the learner directly ("you") in a practical, applied tone — this is workplace training,
+  not an academic textbook
+- Use a detailed, realistic scenario where it helps ground an abstract concept in practice
 
 For each learning outcome, include where relevant: precise definitions, step-by-step procedures,
-common mistakes, and at least one detailed, realistic scenario using examples natural to this actual
-subject matter. Where a calculation or formula is genuinely relevant, include it. Where comparing
-options or listing structured data is genuinely relevant, include a table.
+common mistakes, and at least one detailed, realistic scenario using examples natural to this
+actual subject matter.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -203,26 +215,23 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
     {{
       "heading": "<short section heading tied to one learning outcome>",
       "blocks": [
+        {{"type": "info_box", "title": "This Chapter Covers", "items": ["<point 1>", "<point 2>"]}},
         {{"type": "paragraph", "text": "Explanatory text, 100-200 words, plain text no markdown."}},
         {{"type": "scenario", "text": "A detailed, realistic workplace scenario walking through what happens and what the worker should do."}},
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"], ["value", "value"]]}},
-        {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, plain text, e.g. Risk = Likelihood x Severity"}},
+        {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, e.g. Z = C + E - D", "variables": [{{"symbol": "Z", "meaning": "what Z represents"}}, {{"symbol": "C", "meaning": "what C represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
-        {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo, e.g. 'warehouse worker safety helmet'", "caption": "What this image shows"}}
+        {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
       ]
     }}
   ],
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>", "<concise takeaway 3>"]
 }}
 
-Include a "diagram" block where a step-by-step process is genuinely central to the topic (3-6 steps).
-Include an "image" block where a real photo would help illustrate a concept (equipment, environment, technique).
-Do not force every section to use every block type — most sections should just be paragraph and
-occasionally scenario; diagrams, tables, formulas, and images are for genuinely relevant cases only.
-
-Each section needs at least one "paragraph" block. Only include "scenario", "table", or "formula" blocks
-where genuinely relevant to that section — do not force them into every section. One section per learning
-outcome. Plain text only inside strings — no asterisks, no markdown headers."""
+Only the FIRST section needs an info_box scope block. Every section needs at least one paragraph
+block. Only include scenario/table/formula/diagram/image blocks where genuinely relevant — do not
+force them into every section. One section per learning outcome. Plain text only inside strings —
+no asterisks, no markdown headers."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=4500, job_id=job_id)
@@ -237,8 +246,9 @@ outcome. Plain text only inside strings — no asterisks, no markdown headers.""
                 continue
 
 def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
-    """Expands a syllabus unit into real slide content: a few genuinely useful bullets
-    per slide plus speaker notes, rather than just repeating the raw outcomes."""
+    """Generates 1-2 slides for one syllabus unit: a teaching slide, and (where the
+    content suits it) a practice/exercise slide applying the concept — matching the
+    real pattern of alternating instruction and hands-on practice in accredited decks."""
     outcomes_text = "\n".join(f"- {o}" for o in outcomes)
     context_lines = []
     if seta:
@@ -246,39 +256,60 @@ def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf
     if nqf_level:
         context_lines.append(f"NQF Level: {nqf_level}")
 
-    prompt = f"""You are creating a training slide for a South African SETA/QCTO-accredited
-workplace training presentation.
+    prompt = f"""You are creating slides for a South African SETA/QCTO-accredited workplace
+training presentation, in the style of real accredited training decks: punchy fragment-style
+bullets (not full sentences), concrete worked numbers where relevant, and a clear teach-then-
+practice rhythm.
 
-Slide topic: {unit_name}
+Unit: {unit_name}
 {chr(10).join(context_lines)}
 
-This slide covers these learning outcomes:
+This unit covers these learning outcomes:
 {outcomes_text}
 
-Write slide content: 3 to 5 short, punchy bullet points a facilitator would actually put on screen
-(not full sentences restating the outcomes — genuinely useful, specific takeaways: key facts, steps,
-warnings, or numbers). Then write speaker notes: 2-3 sentences the facilitator would say out loud to
-explain and expand on the bullets, including one concrete workplace example.
+Create ONE teaching slide covering the core concept(s) for this unit. If the outcomes involve
+a calculation, procedure, or skill a learner could practically apply, ALSO create ONE practice
+slide with a concrete exercise or scenario question the learner works through — using real,
+specific numbers/examples, not abstract placeholders (e.g. "What's 15% of R8,000?" not
+"calculate a percentage"). If the unit is purely conceptual with nothing to practically apply,
+return only the teaching slide.
+
+Bullets must be short fragments (4-8 words each), not full sentences. Where a worked example
+is used, show it step by step (e.g. "Step 1: Round R2,899 to R3,000").
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
-  "bullets": ["<short bullet 1>", "<short bullet 2>", "<short bullet 3>"],
-  "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example.",
-  "image_search_term": "2-4 word search phrase for a relevant photo, or null if this slide doesn't need one"
+  "slides": [
+    {{
+      "slide_type": "teach",
+      "title": "<short slide title>",
+      "bullets": ["<fragment 1>", "<fragment 2>", "<fragment 3>"],
+      "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example.",
+      "image_search_term": "2-4 word search phrase for a relevant photo, or null if not needed"
+    }},
+    {{
+      "slide_type": "practice",
+      "title": "<short slide title, e.g. 'Let's Practice!' or a scenario name>",
+      "bullets": ["<exercise instruction or question with real numbers>", "<follow-up question>"],
+      "speaker_notes": "What the facilitator says to set up this exercise.",
+      "image_search_term": "2-4 word search phrase for a relevant photo, or null if not needed"
+    }}
+  ]
 }}
 
-Only include image_search_term where a real photo would genuinely support this specific slide's content
-(e.g. equipment, environment, a technique being described) — most slides should have this as null."""
+Omit the practice slide entirely from the array if this unit has nothing practical to exercise."""
 
-    raw_response = _call_model("slide_content", prompt, max_tokens=800, job_id=job_id)
-
-    try:
-        return json.loads(raw_response)
-    except json.JSONDecodeError:
+    for attempt in range(2):
+        raw_response = _call_model("slide_content", prompt, max_tokens=1200, job_id=job_id)
         try:
-            return json.loads(_repair_json_string(raw_response))
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
 
 def generate_assessment_questions(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Generates test questions for one syllabus unit, covering its learning outcomes.
@@ -367,16 +398,16 @@ def generate_guide_section_content(document_subtype: str, unit_name: str, outcom
         context_lines.append(f"NQF Level: {nqf_level}")
 
     prompt = f"""You are writing content for {framing}, for a South African SETA/QCTO-accredited
-training programme.
+training programme, in the style of real accredited SETA learner/facilitator guides.
 
 Write content grounded in the ACTUAL subject matter of this unit — do not force unrelated industrial,
 workplace-safety, or manufacturing framing onto topics that aren't about that (e.g. a programming or IT
 topic should use programming examples, not steel plants or mining).
 
-CRITICAL — never invent specific standard numbers, unit standard IDs, SANS numbers, or regulatory
-citations. Only reference a real standard/regulation by name if you are confident it genuinely exists
-and applies — otherwise describe the general principle in plain language without a fabricated citation
-attached to it.
+CITATIONS: If this topic genuinely involves South African law or regulation, you may cite REAL
+acts/sections you are confident actually exist, and explicitly scope to the relevant ones for this
+section. If the topic does NOT involve law/regulation, do not invent or reference any legislation at
+all. Never invent a specific act name, section number, or standard number you are not confident is real.
 
 Unit: {unit_name}
 {chr(10).join(context_lines)}
@@ -388,6 +419,14 @@ Write content appropriate to this specific document type — not generic textboo
 and specific to the role this document plays (e.g. a facilitator guide gives delivery instructions,
 not learner-facing explanations; an assessment guide gives marking guidance, not questions themselves).
 
+STRUCTURE, matching real accredited guides:
+- Open the first section with a scope statement (an info_box block with bullet items) stating what
+  this section covers
+- Give genuine depth per section — several sentences of real substance, not a shallow gloss
+- Where the topic has real formulas/calculations, always include a variable legend, not a bare formula
+- Where comparing multiple options/approaches, use a real comparative table
+- Address the reader directly and practically, appropriate to this document type's role
+
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
   "intro": "1-2 sentence introduction to this section",
@@ -395,8 +434,10 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
     {{
       "heading": "<short section heading>",
       "blocks": [
+        {{"type": "info_box", "title": "This Section Covers", "items": ["<point 1>", "<point 2>"]}},
         {{"type": "paragraph", "text": "Content appropriate to the document type, 80-150 words."}},
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"]]}},
+        {{"type": "formula", "label": "Short name", "text": "The formula itself", "variables": [{{"symbol": "X", "meaning": "what X represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
         {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
       ]
@@ -405,8 +446,9 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>"]
 }}
 
-Only include table, diagram, or image blocks where genuinely relevant to this specific document type —
-most sections should just be a paragraph block. One section per learning outcome. Plain text only, no markdown."""
+Only the FIRST section needs an info_box scope block. Only include table, formula, diagram, or image
+blocks where genuinely relevant to this specific document type — most sections should just be a
+paragraph block. One section per learning outcome. Plain text only, no markdown."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)

@@ -102,44 +102,59 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
         unit_name = unit.get("name", "Unit")
         outcomes = unit.get("outcomes", [])
 
-        slide_content = generate_slide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
-        bullets = slide_content.get("bullets", outcomes)
+        result = generate_slide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
+        slides_for_unit = result.get("slides", [])
 
-        slide = prs.slides.add_slide(bullet_layout)
-        _add_split_top_bar(slide, prs, primary, secondary)
-        _add_corner_flag(slide, accent)
-        _add_footer_band(slide, prs, organization_name, primary)
+        for slide_data in slides_for_unit:
+            slide_type = slide_data.get("slide_type", "teach")
+            slide_title = slide_data.get("title", unit_name)
+            bullets = slide_data.get("bullets", outcomes)
 
-        slide.shapes.title.text = unit_name
-        title_run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
-        title_run.font.color.rgb = primary
-        title_run.font.bold = True
+            slide = prs.slides.add_slide(bullet_layout)
+            _add_split_top_bar(slide, prs, primary, secondary)
+            _add_corner_flag(slide, accent)
+            _add_footer_band(slide, prs, organization_name, primary)
 
-        body = slide.placeholders[1].text_frame
-        body.clear()
-        if bullets:
-            body.text = bullets[0]
-            body.paragraphs[0].font.color.rgb = secondary
-            body.paragraphs[0].font.size = Pt(20)
-            for bullet in bullets[1:]:
-                p = body.add_paragraph()
-                p.text = bullet
-                p.font.color.rgb = secondary
-                p.font.size = Pt(20)
+            title_shape = slide.shapes.title
+            title_shape.left = Inches(0.5)
+            title_shape.top = Inches(1.0)
+            title_shape.width = Inches(9.0)
+            title_shape.height = Inches(1.2)
+            title_shape.text = slide_title
+            title_run = title_shape.text_frame.paragraphs[0].runs[0]
+            title_run.font.color.rgb = accent if slide_type == "practice" else primary
+            title_run.font.bold = True
 
-        speaker_notes = slide_content.get("speaker_notes", "")
-        if speaker_notes:
-            slide.notes_slide.notes_text_frame.text = speaker_notes
+            body_shape = slide.placeholders[1]
+            body_shape.left = Inches(0.5)
+            body_shape.top = Inches(2.2)
+            body_shape.width = Inches(6.0)
+            body_shape.height = Inches(4.3)
+            body = body_shape.text_frame
+            body.clear()
+            if bullets:
+                body.text = bullets[0]
+                body.paragraphs[0].font.color.rgb = secondary
+                body.paragraphs[0].font.size = Pt(18)
+                for bullet in bullets[1:]:
+                    p = body.add_paragraph()
+                    p.text = bullet
+                    p.font.color.rgb = secondary
+                    p.font.size = Pt(18)
 
-        image_search_term = slide_content.get("image_search_term")
-        if image_search_term:
-            from app.services.image_service import fetch_stock_photo
-            photo_bytes = fetch_stock_photo(image_search_term)
-            if photo_bytes:
-                try:
-                    slide.shapes.add_picture(BytesIO(photo_bytes), Inches(6.8), Inches(2.2), width=Inches(2.8))
-                except Exception:
-                    pass
+            speaker_notes = slide_data.get("speaker_notes", "")
+            if speaker_notes:
+                slide.notes_slide.notes_text_frame.text = speaker_notes
+
+            image_search_term = slide_data.get("image_search_term")
+            if image_search_term:
+                from app.services.image_service import fetch_stock_photo
+                photo_bytes = fetch_stock_photo(image_search_term)
+                if photo_bytes:
+                    try:
+                        slide.shapes.add_picture(BytesIO(photo_bytes), Inches(6.8), Inches(2.2), width=Inches(2.8))
+                    except Exception:
+                        pass
 
         if logo_bytes:
             slide.shapes.add_picture(BytesIO(logo_bytes), Inches(8.6), Inches(6.55), height=Inches(0.45))

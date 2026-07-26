@@ -91,15 +91,49 @@ def _render_content_block(doc, block, primary_hex, secondary):
         formula_p = doc.add_paragraph()
         formula_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         formula_p.paragraph_format.space_before = Pt(8)
-        formula_p.paragraph_format.space_after = Pt(8)
-        _shade_paragraph(formula_p, "FFF8E7")  # warm highlight background
+        _shade_paragraph(formula_p, "FFF8E7")
         if block.get("label"):
             label_run = formula_p.add_run(f"{block['label']}: ")
             label_run.bold = True
             label_run.font.size = Pt(11)
+            label_run.font.color.rgb = secondary
         formula_run = formula_p.add_run(block.get("text", ""))
         formula_run.font.size = Pt(13)
         formula_run.font.name = "Consolas"
+
+        variables = block.get("variables", [])
+        if variables:
+            legend_p = doc.add_paragraph()
+            legend_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _shade_paragraph(legend_p, "FFF8E7")
+            legend_run = legend_p.add_run("Where:")
+            legend_run.italic = True
+            legend_run.font.size = Pt(10)
+            legend_run.font.color.rgb = secondary
+            for v in variables:
+                var_run = legend_p.add_run(f"\n{v.get('symbol', '')} = {v.get('meaning', '')}")
+                var_run.font.size = Pt(10)
+        doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
+    elif block_type == "info_box":
+        box_para = doc.add_paragraph()
+        box_para.paragraph_format.space_before = Pt(6)
+        _shade_paragraph(box_para, "F4F6F8")  # light neutral tint — background stays subtle, text/border carry the brand
+        _add_full_border(box_para, primary_hex)
+        if block.get("title"):
+            title_run = box_para.add_run(block["title"] + "\n")
+            title_run.bold = True
+            title_run.font.size = Pt(11)
+            title_run.font.color.rgb = secondary
+        items = block.get("items", [])
+        if items:
+            for item in items:
+                item_run = box_para.add_run(f"• {item}\n")
+                item_run.font.size = Pt(10)
+        elif block.get("text"):
+            text_run = box_para.add_run(block["text"])
+            text_run.font.size = Pt(10)
+        doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
     elif block_type == "diagram":
         from app.services.image_service import generate_flow_diagram
