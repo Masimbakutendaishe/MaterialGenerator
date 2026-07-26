@@ -19,6 +19,12 @@ def create_app(config_name=None):
     login_manager.init_app(app)
     login_manager.login_view = "web.login"
 
+    @app.before_request
+    def refresh_session():
+        from flask import session
+        if "_user_id" in session:  # only touch the session for logged-in users
+            session.permanent = True
+
     from app.models.user import User
 
     @login_manager.user_loader
