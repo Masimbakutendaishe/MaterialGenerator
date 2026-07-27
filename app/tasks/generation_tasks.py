@@ -11,6 +11,7 @@ from app.services.guide_document_service import build_guide_docx
 from functools import partial
 from app.services.facilitator_guide_service import build_facilitator_guide_docx
 from app.services.summative_assessment_service import build_summative_assessment_docx
+from app.services.alignment_matrix_service import build_alignment_matrix_docx
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -134,7 +135,7 @@ DOCUMENT_BUILDERS = {
     "poe_guide": (partial(build_guide_docx, document_subtype="poe_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "learner_induction_guide": (partial(build_guide_docx, document_subtype="learner_induction_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "programme_strategy": (partial(build_guide_docx, document_subtype="programme_strategy"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    "programme_alignment_matrix": (partial(build_guide_docx, document_subtype="programme_alignment_matrix"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "programme_alignment_matrix": (build_alignment_matrix_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
 }
 
 

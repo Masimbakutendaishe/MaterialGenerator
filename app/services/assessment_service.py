@@ -24,26 +24,10 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
 
     doc = Document()
 
-    if logo_bytes:
-        logo_para = doc.add_paragraph()
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = logo_para.add_run()
-        run.add_picture(BytesIO(logo_bytes), width=Inches(1.3))
+    from app.services.document_service import _build_branded_cover
+    _build_branded_cover(doc, title, "Assessment", organization_name, logo_bytes, primary, primary_hex, RGBColor(0x28, 0x74, 0xA6))
 
-    title_para = doc.add_paragraph()
-    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title_para.add_run(f"{title} — Assessment")
-    title_run.bold = True
-    title_run.font.size = Pt(24)
-    title_run.font.color.rgb = primary
-
-    if organization_name:
-        sub = doc.add_paragraph()
-        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sub_run = sub.add_run(organization_name)
-        sub_run.font.size = Pt(12)
-
-    doc.add_paragraph()
+    # Candidate details table with real borders
 
     # Candidate details block
     for label in ["Name:", "Date:", "Assessor:"]:

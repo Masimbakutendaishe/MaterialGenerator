@@ -221,6 +221,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"], ["value", "value"]]}},
         {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, e.g. Z = C + E - D", "variables": [{{"symbol": "Z", "meaning": "what Z represents"}}, {{"symbol": "C", "meaning": "what C represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
+        {{"type": "list", "items": ["<item 1>", "<item 2>", "<item 3>"], "ordered": false}},
         {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
       ]
     }}
@@ -229,9 +230,13 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 }}
 
 Only the FIRST section needs an info_box scope block. Every section needs at least one paragraph
-block. Only include scenario/table/formula/diagram/image blocks where genuinely relevant — do not
-force them into every section. One section per learning outcome. Plain text only inside strings —
-no asterisks, no markdown headers."""
+block. Only include scenario/table/formula/diagram/image/list blocks where genuinely relevant — do
+not force them into every section. One section per learning outcome. Plain text only inside strings —
+no asterisks, no markdown headers.
+
+NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "1) X 2) Y 3) Z" or
+"firstly... secondly..."). Whenever you have 3 or more related items, use a "list" block instead —
+set "ordered": true for sequential steps, "ordered": false for unordered items."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=4500, job_id=job_id)
@@ -274,8 +279,10 @@ specific numbers/examples, not abstract placeholders (e.g. "What's 15% of R8,000
 "calculate a percentage"). If the unit is purely conceptual with nothing to practically apply,
 return only the teaching slide.
 
-Bullets must be short fragments (4-8 words each), not full sentences. Where a worked example
-is used, show it step by step (e.g. "Step 1: Round R2,899 to R3,000").
+Bullets must be short fragments (4-8 words each), not full sentences. The teaching slide should
+have 5-7 bullets covering the concept with real substance (definitions, key facts, or steps) —
+not 2-3 sparse bullets. Where a worked example is used, show it step by step (e.g. "Step 1:
+Round R2,899 to R3,000") as separate bullets, not compressed into one line.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -300,7 +307,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 Omit the practice slide entirely from the array if this unit has nothing practical to exercise."""
 
     for attempt in range(2):
-        raw_response = _call_model("slide_content", prompt, max_tokens=1200, job_id=job_id)
+        raw_response = _call_model("slide_content", prompt, max_tokens=2000, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
@@ -439,6 +446,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"]]}},
         {{"type": "formula", "label": "Short name", "text": "The formula itself", "variables": [{{"symbol": "X", "meaning": "what X represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
+        {{"type": "list", "items": ["<item 1>", "<item 2>", "<item 3>"], "ordered": false}},
         {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
       ]
     }}
@@ -446,9 +454,13 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>"]
 }}
 
-Only the FIRST section needs an info_box scope block. Only include table, formula, diagram, or image
-blocks where genuinely relevant to this specific document type — most sections should just be a
-paragraph block. One section per learning outcome. Plain text only, no markdown."""
+Only the FIRST section needs an info_box scope block. Only include table, formula, diagram, image, or
+list blocks where genuinely relevant to this specific document type — most sections should just be a
+paragraph block. One section per learning outcome. Plain text only, no markdown.
+
+NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "1) X 2) Y 3) Z" or
+"firstly... secondly..."). Whenever you have 3 or more related items, use a "list" block instead —
+set "ordered": true for sequential steps, "ordered": false for unordered items."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)
@@ -579,3 +591,31 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
                 if attempt == 1:
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
+
+def generate_alignment_matrix_row(unit_name: str, outcome: str, job_id: str = None) -> dict:
+    """Generates the assessment-type classification for one learning outcome, for the
+    Programme Alignment Matrix — matching real INSETA-style traceability tables."""
+    prompt = f"""For this single learning outcome from a South African SETA/QCTO-accredited
+training programme, classify how it would typically be assessed.
+
+Unit: {unit_name}
+Outcome: {outcome}
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "assessment_type": "<one of: MC, SQ, LQ, ESS, WPA, OTJ>",
+  "notional_hours": 2
+}}
+
+Type codes: MC = Multiple Choice, SQ = Short Question, LQ = Long Question, ESS = Essay,
+WPA = Workplace Application, OTJ = On The Job. notional_hours is a realistic estimate (1-8)
+of study/practice hours for this one outcome."""
+
+    raw_response = _call_model("slide_content", prompt, max_tokens=200, job_id=job_id)
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            return json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return {"assessment_type": "SQ", "notional_hours": 2}  # safe fallback, never breaks the document

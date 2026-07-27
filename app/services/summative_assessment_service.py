@@ -19,24 +19,10 @@ def build_summative_assessment_docx(title: str, units: list, organization_name: 
 
     doc = Document()
 
-    if logo_bytes:
-        logo_para = doc.add_paragraph()
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        logo_para.add_run().add_picture(BytesIO(logo_bytes), width=Inches(1.3))
+    from app.services.document_service import _build_branded_cover
+    _build_branded_cover(doc, title, "Summative Assessment", organization_name, logo_bytes, primary, primary_hex, primary)
 
-    title_para = doc.add_paragraph()
-    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title_para.add_run(f"Summative Assessment\n{title}")
-    run.bold = True
-    run.font.size = Pt(22)
-    run.font.color.rgb = primary
-
-    if organization_name:
-        sub = doc.add_paragraph()
-        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sub.add_run(organization_name).font.size = Pt(12)
-
-    doc.add_paragraph()
+    # Score cover table
 
     # Score cover table
     section_a_marks = sum(q.get("marks", 1) for q in content.get("section_a", []))

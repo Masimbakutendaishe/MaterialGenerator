@@ -34,24 +34,8 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
     doc.styles["Normal"].font.name = "Calibri"
     doc.styles["Normal"].font.size = Pt(11)
 
-    if logo_bytes:
-        logo_para = doc.add_paragraph()
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        logo_para.add_run().add_picture(BytesIO(logo_bytes), width=Inches(1.3))
-
-    title_para = doc.add_paragraph()
-    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title_para.add_run(f"{title}\n{label}")
-    title_run.bold = True
-    title_run.font.size = Pt(22)
-    title_run.font.color.rgb = primary
-
-    if organization_name:
-        sub = doc.add_paragraph()
-        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sub.add_run(organization_name).font.size = Pt(12)
-
-    doc.add_page_break()
+    from app.services.document_service import _build_branded_cover
+    _build_branded_cover(doc, title, label, organization_name, logo_bytes, primary, primary_hex, secondary)
 
     for unit in units:
         unit_name = unit.get("name", "Unit")

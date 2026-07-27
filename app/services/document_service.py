@@ -174,6 +174,14 @@ def _render_content_block(doc, block, primary_hex, secondary):
             except Exception as exc:
                 print(f"[DEBUG] image render failed: {exc}")
 
+    elif block_type == "list":
+        items = block.get("items", [])
+        ordered = block.get("ordered", False)
+        style = "List Number" if ordered else "List Bullet"
+        for item in items:
+            doc.add_paragraph(item, style=style)
+        doc.add_paragraph().paragraph_format.space_after = Pt(4)
+
     else:  # paragraph
         for para_text in block.get("text", "").split("\n\n"):
             cleaned = para_text.strip()
@@ -406,3 +414,56 @@ def _add_page_numbers(doc: Document):
         _add_field(para, "PAGE")
         para.add_run(" of ")
         _add_field(para, "NUMPAGES")
+
+def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organization_name: str,
+                          logo_bytes: bytes, primary, primary_hex: str, secondary):
+    """Shared branded cover page used by every document type: full page border, centered
+    logo, bold title, colored accent rules, and a shaded organization name band."""
+    _add_page_border(doc.sections[0], primary_hex)
+
+    for _ in range(3):
+        doc.add_paragraph()
+
+    if logo_bytes:
+        logo_para = doc.add_paragraph()
+        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_para.add_run().add_picture(BytesIO(logo_bytes), width=Inches(1.6))
+        doc.add_paragraph()
+
+    rule_above = doc.add_paragraph()
+    rule_above.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_bottom_border(rule_above, primary_hex, size="10")
+
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_para.add_run(doc_title)
+    title_run.bold = True
+    title_run.font.size = Pt(26)
+    title_run.font.color.rgb = primary
+
+    if doc_subtitle:
+        subtitle_para = doc.add_paragraph()
+        subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        subtitle_run = subtitle_para.add_run(doc_subtitle)
+        subtitle_run.italic = True
+        subtitle_run.font.size = Pt(13)
+        subtitle_run.font.color.rgb = secondary
+
+    rule_below = doc.add_paragraph()
+    rule_below.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_bottom_border(rule_below, primary_hex, size="10")
+
+    doc.add_paragraph()
+
+    if organization_name:
+        org_para = doc.add_paragraph()
+        org_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        org_para.paragraph_format.space_before = Pt(6)
+        org_para.paragraph_format.space_after = Pt(6)
+        _shade_paragraph(org_para, primary_hex)
+        org_run = org_para.add_run(f"  {organization_name}  ")
+        org_run.font.size = Pt(15)
+        org_run.bold = True
+        org_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
+    doc.add_page_break()
