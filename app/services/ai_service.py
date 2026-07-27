@@ -517,3 +517,65 @@ the learner met this activity's requirements — phrased as questions."""
                 if attempt == 1:
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
+
+def generate_summative_assessment_content(title: str, units: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+    """Generates a case-study-driven summative assessment covering all units of a syllabus:
+    a realistic named-client scenario, followed by multiple choice questions referencing it,
+    short knowledge questions, and a long/essay question — matching real accredited exam format."""
+    all_outcomes = []
+    for unit in units:
+        all_outcomes.extend(unit.get("outcomes", []))
+    outcomes_text = "\n".join(f"- {o}" for o in all_outcomes)
+
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    prompt = f"""You are writing a Summative Assessment for a South African SETA/QCTO-accredited
+training programme, in the style of real accredited exams.
+
+Course: {title}
+{chr(10).join(context_lines)}
+
+This assessment must cover these learning outcomes across the whole course:
+{outcomes_text}
+
+Write a realistic CASE STUDY: a named individual or business client with specific, concrete
+details (numbers, amounts, dates, circumstances) relevant to this course's subject matter.
+This case study is the shared reference point for Section A's questions.
+
+Then write:
+- SECTION A: 6-10 multiple choice questions, each with 4 options, that require the learner to
+  apply knowledge to the case study (reference specific details from it in the questions)
+- SECTION B: 2-3 short knowledge questions (definitions/explanations, not tied to the case study)
+- SECTION C: 1 long/essay question requiring a fuller written response
+
+Assign realistic marks per question based on complexity.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "case_study": "The full case study text with specific concrete details.",
+  "section_a": [
+    {{"question_text": "<question referencing the case study>", "marks": 1, "options": ["<A>", "<B>", "<C>", "<D>"]}}
+  ],
+  "section_b": [
+    {{"question_text": "<short knowledge question>", "marks": 3, "blank_lines": 4}}
+  ],
+  "section_c": [
+    {{"question_text": "<essay question>", "marks": 10, "blank_lines": 15}}
+  ]
+}}"""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=4500, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
