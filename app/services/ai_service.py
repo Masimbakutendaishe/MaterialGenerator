@@ -372,7 +372,7 @@ For multiple_choice, omit "blank_lines"."""
 
 DOCUMENT_PROMPT_FRAMING = {
     "learner_manual": "a Learner Manual — the core training content the learner studies to gain the knowledge and skills required by the unit standard",
-    "facilitator_guide": "a Facilitator Guide — delivery notes for the trainer: lesson objectives, timing, preparation notes, and delivery instructions for facilitating this unit",
+    "facilitator_guide": "a Facilitator Guide — practical delivery notes for the trainer running this unit in a live session: session objectives, suggested timing per activity, materials/preparation needed, step-by-step delivery instructions (what to say, what to do, what to ask learners), and at least one suggested classroom activity or discussion prompt tied directly to this unit's topic",
     "formative_assessment": "a Formative Assessment — ongoing, low-stakes questions and activities used to check understanding as the learner progresses through this unit",
     "summative_assessment": "a Summative Assessment — formal end-of-unit questions and practical tasks used to certify competence in this unit",
     "assessment_guide": "an Assessment Guide — guidance for the Assessor on how to conduct and mark the assessment for this unit, including an evidence checklist",
@@ -452,6 +452,62 @@ paragraph block. One section per learning outcome. Plain text only, no markdown.
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
+
+def generate_facilitator_guide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+    """Generates model-answer assessment content for a Facilitator/Assessor Guide,
+    matching the real INSETA-style format: activities with model answers marked by
+    key scoreable points and mark allocations, plus unit standard reference data."""
+    outcomes_text = "\n".join(f"- {o}" for o in outcomes)
+    context_lines = []
+    if seta:
+        context_lines.append(f"SETA: {seta}")
+    if nqf_level:
+        context_lines.append(f"NQF Level: {nqf_level}")
+
+    prompt = f"""You are writing a Facilitator/Assessor Guide for a South African
+SETA/QCTO-accredited training programme, in the style of real accredited assessor guides.
+This document gives the ASSESSOR the model answers and marking guidance for the formative
+assessment activity covering this unit — it is not learner-facing content.
+
+Unit: {unit_name}
+{chr(10).join(context_lines)}
+
+This unit covers these learning outcomes:
+{outcomes_text}
+
+Write ONE activity for this unit. The activity should have 1-3 questions that test the
+learning outcomes. For each question, write a model answer as the assessor would expect it —
+broken into distinct scoreable points (each point is something a learner could state to earn
+a mark), and assign a total mark value to the question based on how many scoreable points
+it has.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "activity_title": "<short activity name>",
+  "questions": [
+    {{
+      "question_text": "<the question exactly as it would appear to the learner>",
+      "marks": 8,
+      "model_answer_points": ["<scoreable point 1>", "<scoreable point 2>", "<scoreable point 3>"]
+    }}
+  ],
+  "evaluation_criteria": ["<short criterion the assessor checks off, e.g. 'Was the learner able to explain X?'>"]
+}}
+
+evaluation_criteria should be 1-3 short yes/no checklist items an assessor uses to confirm
+the learner met this activity's requirements — phrased as questions."""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=2000, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:

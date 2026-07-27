@@ -9,6 +9,7 @@ from app.services.storage_service import upload_file, download_file
 from app.models.review import Notification
 from app.services.guide_document_service import build_guide_docx
 from functools import partial
+from app.services.facilitator_guide_service import build_facilitator_guide_docx
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -124,11 +125,11 @@ DOCUMENT_BUILDERS = {
     "presentation": (build_presentation_pptx, "pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
     "assessment": (build_assessment_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "learner_manual": (partial(build_guide_docx, document_subtype="learner_manual"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    "facilitator_guide": (partial(build_guide_docx, document_subtype="facilitator_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "assessment_guide": (build_facilitator_guide_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "formative_assessment": (partial(build_guide_docx, document_subtype="formative_assessment"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "summative_assessment": (partial(build_guide_docx, document_subtype="summative_assessment"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    "assessment_guide": (partial(build_guide_docx, document_subtype="assessment_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "moderator_guide": (partial(build_guide_docx, document_subtype="moderator_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "facilitator_guide": (partial(build_guide_docx, document_subtype="facilitator_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "poe_guide": (partial(build_guide_docx, document_subtype="poe_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "learner_induction_guide": (partial(build_guide_docx, document_subtype="learner_induction_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "programme_strategy": (partial(build_guide_docx, document_subtype="programme_strategy"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
