@@ -73,6 +73,9 @@ def build_summative_assessment_docx(title: str, units: list, organization_name: 
     # Section C
     _render_section(doc, "SECTION C", "Long Question", content.get("section_c", []), primary, section_c_marks, mc=False)
 
+    doc.add_page_break()
+    from app.services.document_service import _add_signature_block
+    _add_signature_block(doc)
     _add_page_numbers(doc)
 
     buffer = BytesIO()

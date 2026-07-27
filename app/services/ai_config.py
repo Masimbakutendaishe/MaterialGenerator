@@ -1,11 +1,12 @@
-"""Maps generation tasks to specific models/providers. Change routing here only —
+"""Maps generation tasks to specific models/providers, with an automatic fallback
+provider used if the primary provider is out of credits/quota. Change routing here only —
 nothing elsewhere in the app should hardcode a model name."""
 
 TASK_MODEL_MAP = {
-    "syllabus_generation":   {"provider": "groq", "model": "openai/gpt-oss-120b"},
-    "syllabus_structuring":  {"provider": "groq", "model": "openai/gpt-oss-120b"},
-    "textbook_writing":      {"provider": "groq", "model": "openai/gpt-oss-120b"},
-    "slide_content":         {"provider": "groq", "model": "openai/gpt-oss-120b"},  # free for now, swap to Claude later
+    "syllabus_generation":   {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
+    "syllabus_structuring":  {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
+    "textbook_writing":      {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
+    "slide_content":         {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
 }
 
 

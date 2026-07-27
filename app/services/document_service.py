@@ -378,6 +378,7 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
 
         doc.add_page_break()
 
+    _add_signature_block(doc)
     _add_page_numbers(doc)
 
     buffer = BytesIO()
@@ -467,3 +468,15 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
         org_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
     doc.add_page_break()
+
+def _add_signature_block(doc: Document):
+    """Adds Learner/Facilitator/Assessor-Moderator signature lines — appended to every
+    learner-facing document."""
+    doc.add_paragraph()
+    heading = doc.add_paragraph()
+    heading.add_run("Sign-Off").bold = True
+    for label in ["Learner Name & Signature:", "Date:", "Facilitator Name & Signature:", "Date:",
+                  "Assessor / Moderator Name & Signature:", "Date:"]:
+        p = doc.add_paragraph()
+        p.add_run(f"{label} " + "_" * 40)
+        p.paragraph_format.space_after = Pt(10)

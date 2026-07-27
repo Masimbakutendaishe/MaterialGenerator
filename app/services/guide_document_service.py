@@ -78,6 +78,9 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
 
         doc.add_page_break()
 
+    if document_subtype in ("learner_manual",):
+        from app.services.document_service import _add_signature_block
+        _add_signature_block(doc)
     _add_page_numbers(doc)
 
     buffer = BytesIO()

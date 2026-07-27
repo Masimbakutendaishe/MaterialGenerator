@@ -17,78 +17,6 @@ def _repair_json_string(raw: str) -> str:
     an invalid escape."""
     return re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
 
-def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 8, job_id: str = None) -> str:
-    """Routes a prompt to whichever provider/model is configured for this task.
-    Retries automatically on rate limits, with backoff matching the provider's stated wait time.
-    If job_id is given, checks between retries whether the job was cancelled and aborts early."""
-    routing = get_model_for_task(task)
-    provider = routing["provider"]
-    model = routing["model"]
-
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            if provider == "anthropic":
-                api_key = current_app.config.get("ANTHROPIC_API_KEY")
-                if not api_key:
-                    raise RuntimeError("ANTHROPIC_API_KEY is not configured")
-                client = Anthropic(api_key=api_key)
-                response = client.messages.create(
-                    model=model,
-                    max_tokens=max_tokens,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                return "".join(block.text for block in response.content if block.type == "text")
-
-            if provider == "groq":
-                api_key = current_app.config.get("GROQ_API_KEY")
-                if not api_key:
-                    raise RuntimeError("GROQ_API_KEY is not configured")
-                client = Groq(api_key=api_key)
-                response = client.chat.completions.create(
-                    model=model,
-                    max_tokens=max_tokens,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                return response.choices[0].message.content
-
-            raise ValueError(f"Unknown provider '{provider}'")
-
-        except Exception as exc:
-            last_error = exc
-            error_str = str(exc)
-            if "rate_limit" in error_str or "429" in error_str:
-                wait_match = re.search(r'try again in (?:(\d+)m)?([\d.]+)s', error_str)
-                if wait_match:
-                    minutes = int(wait_match.group(1)) if wait_match.group(1) else 0
-                    seconds = float(wait_match.group(2))
-                    wait_time = minutes * 60 + seconds + 3
-                else:
-                    wait_time = min(10 * (attempt + 1), 60)
-                wait_time = min(wait_time, 600)
-
-                if job_id:
-                    from app.models.generation_job import GenerationJob
-                    from app.extensions import db
-                    db.session.expire_all()
-                    job = GenerationJob.query.get(job_id)
-                    if job and job.status == "cancelled":
-                        raise RuntimeError("Job was cancelled during retry wait")
-
-                print(f"[RATE LIMIT] Attempt {attempt + 1}/{max_retries} — waiting {wait_time:.0f}s before retry...")
-                time.sleep(wait_time)
-
-                if job_id:
-                    db.session.expire_all()
-                    job = GenerationJob.query.get(job_id)
-                    if job and job.status == "cancelled":
-                        raise RuntimeError("Job was cancelled during retry wait")
-
-                continue
-            raise
-
-    raise RuntimeError(f"AI call failed after {max_retries} retries (rate limited): {last_error}")
-
 def generate_syllabus(topic: str, seta: str = None, nqf_level: str = None) -> dict:
     """Generates a structured syllabus (units + learning outcomes) for a given topic."""
     context_lines = [f"Topic: {topic}"]
@@ -120,6 +48,7 @@ Produce 4 to 8 units, each with 2 to 5 learning outcomes, appropriate for a work
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
 
+
 def structure_syllabus_from_text(raw_text: str, seta: str = None, nqf_level: str = None) -> dict:
     """Takes raw extracted text from an uploaded document and restructures it into
     the same {"units": [...]} shape used by the type-in and AI-generate paths."""
@@ -129,7 +58,6 @@ def structure_syllabus_from_text(raw_text: str, seta: str = None, nqf_level: str
     if nqf_level:
         context_lines.append(f"NQF Level: {nqf_level}")
 
-    # Truncate very long documents to stay within a reasonable prompt size
     truncated_text = raw_text[:12000]
 
     prompt = f"""You are an instructional designer. Below is raw text extracted from an uploaded
@@ -160,6 +88,98 @@ Preserve the original structure and wording as closely as possible — this is r
         return json.loads(raw_response)
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+
+def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 12, job_id: str = None) -> str:
+    """Routes a prompt to the task's primary provider. If the primary provider is out of
+    credits/quota (a billing error, not a rate limit), automatically falls back to the
+    task's configured fallback provider. Rate limits are retried with backoff as before;
+    credit/billing errors switch provider immediately rather than retrying."""
+    routing = get_model_for_task(task)
+
+    def _attempt(provider, model):
+        for attempt in range(max_retries):
+            try:
+                if provider == "anthropic":
+                    api_key = current_app.config.get("ANTHROPIC_API_KEY")
+                    if not api_key:
+                        raise RuntimeError("ANTHROPIC_API_KEY is not configured")
+                    client = Anthropic(api_key=api_key)
+                    response = client.messages.create(
+                        model=model,
+                        max_tokens=max_tokens,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return "".join(block.text for block in response.content if block.type == "text")
+
+                if provider == "groq":
+                    api_key = current_app.config.get("GROQ_API_KEY")
+                    if not api_key:
+                        raise RuntimeError("GROQ_API_KEY is not configured")
+                    client = Groq(api_key=api_key)
+                    response = client.chat.completions.create(
+                        model=model,
+                        max_tokens=max_tokens,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return response.choices[0].message.content
+
+                raise ValueError(f"Unknown provider '{provider}'")
+
+            except Exception as exc:
+                error_str = str(exc).lower()
+
+                # Check rate-limit FIRST — Groq's own rate-limit messages happen to mention
+                # "billing" (a link to their billing page), which would otherwise be
+                # misclassified as a credits error and skip the retry-and-wait logic entirely.
+                if "rate_limit" in error_str or "429" in error_str:
+                    wait_match = re.search(r'try again in (?:(\d+)m)?([\d.]+)s', str(exc))
+                    if wait_match:
+                        minutes = int(wait_match.group(1)) if wait_match.group(1) else 0
+                        seconds = float(wait_match.group(2))
+                        wait_time = minutes * 60 + seconds + 3
+                    else:
+                        wait_time = min(10 * (attempt + 1), 60)
+                    wait_time = min(wait_time, 1800)  # allow waits up to 30 minutes for daily-limit resets
+
+                    if job_id:
+                        from app.models.generation_job import GenerationJob
+                        from app.extensions import db
+                        db.session.expire_all()
+                        job = GenerationJob.query.get(job_id)
+                        if job and job.status == "cancelled":
+                            raise RuntimeError("Job was cancelled during retry wait")
+
+                    print(f"[RATE LIMIT] ({provider}) Attempt {attempt + 1}/{max_retries} — waiting {wait_time:.0f}s before retry...")
+                    time.sleep(wait_time)
+
+                    if job_id:
+                        db.session.expire_all()
+                        job = GenerationJob.query.get(job_id)
+                        if job and job.status == "cancelled":
+                            raise RuntimeError("Job was cancelled during retry wait")
+                    continue
+
+                if "credit balance" in error_str or "insufficient_quota" in error_str:
+                    raise _OutOfCreditsError(str(exc)) from exc
+
+                raise
+
+        raise RuntimeError(f"AI call failed after {max_retries} retries (rate limited) on {provider}")
+
+    try:
+        return _attempt(routing["provider"], routing["model"])
+    except _OutOfCreditsError as exc:
+        fallback_provider = routing.get("fallback_provider")
+        fallback_model = routing.get("fallback_model")
+        if not fallback_provider:
+            raise RuntimeError(f"Primary provider out of credits and no fallback configured: {exc}") from exc
+        print(f"[FALLBACK] Primary provider out of credits ({exc}) — switching to {fallback_provider}/{fallback_model}")
+        return _attempt(fallback_provider, fallback_model)
+
+
+class _OutOfCreditsError(Exception):
+    """Internal signal that the primary provider is out of credits/quota — triggers fallback."""
+    pass
 
 
 def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:

@@ -17,15 +17,15 @@ def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
 
 
 def build_assessment_docx(title: str, units: list, organization_name: str = None,
-                         seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
-                         brand_colors: dict = None, job_id: str = None) -> BytesIO:
+                           seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
+                           brand_colors: dict = None, job_id: str = None, doc_label: str = "Assessment") -> BytesIO:
     brand_colors = brand_colors or {}
     primary = _hex_to_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
 
     doc = Document()
 
     from app.services.document_service import _build_branded_cover
-    _build_branded_cover(doc, title, "Assessment", organization_name, logo_bytes, primary, primary_hex, RGBColor(0x28, 0x74, 0xA6))
+    _build_branded_cover(doc, title, doc_label, organization_name, logo_bytes, primary, primary_hex, RGBColor(0x28, 0x74, 0xA6))
 
     # Candidate details table with real borders
 
@@ -84,6 +84,9 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
     total_run = total_para.add_run(f"Total Marks: {total_marks}")
     total_run.bold = True
     total_run.font.size = Pt(13)
+
+    from app.services.document_service import _add_signature_block
+    _add_signature_block(doc)
 
     _add_page_numbers(doc)
 
