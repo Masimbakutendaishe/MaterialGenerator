@@ -102,7 +102,7 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
         unit_name = unit.get("name", "Unit")
         outcomes = unit.get("outcomes", [])
 
-        result = generate_slide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
+        result = generate_slide_content(unit_name, outcomes, course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
         slides_for_unit = result.get("slides", [])
 
         for slide_data in slides_for_unit:

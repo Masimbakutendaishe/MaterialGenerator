@@ -44,8 +44,7 @@ def _add_full_border(paragraph, color_hex: str):
         p_borders.append(border)
     p_pr.append(p_borders)
 
-
-def _render_content_block(doc, block, primary_hex, secondary):
+def _render_content_block(doc, block, primary_hex, secondary, accent_hex=None):
     print(f"[DEBUG] block type received: {block.get('type')}")
     block_type = block.get("type", "paragraph")
 
@@ -140,7 +139,7 @@ def _render_content_block(doc, block, primary_hex, secondary):
         steps = block.get("steps", [])
         if steps:
             try:
-                png_bytes = generate_flow_diagram(steps, primary_hex=primary_hex)
+                png_bytes = generate_flow_diagram(steps, primary_hex=primary_hex, accent_hex=accent_hex or "F39C12")
                 img_para = doc.add_paragraph()
                 img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 img_para.add_run().add_picture(io.BytesIO(png_bytes), width=Inches(4.5))
@@ -333,7 +332,7 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
 
         doc.add_paragraph()
 
-        chapter = write_chapter_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
+        chapter = write_chapter_content(unit_name, outcomes, course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
 
         if chapter.get("intro"):
             intro_p = doc.add_paragraph()
@@ -354,7 +353,7 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
             blocks = section.get("blocks")
             if blocks:
                 for block in blocks:
-                    _render_content_block(doc, block, primary_hex, secondary)
+                    _render_content_block(doc, block, primary_hex, secondary, accent_hex=accent_hex)
             else:
                 # Fallback for any older-format response that still uses "body" instead of "blocks"
                 body = section.get("body", "")

@@ -61,7 +61,7 @@ def build_alignment_matrix_docx(title: str, units: list, organization_name: str 
         outcomes = unit.get("outcomes", [])
 
         for o_index, outcome in enumerate(outcomes, start=1):
-            row_data = generate_alignment_matrix_row(unit_name, outcome, job_id=job_id)
+            row_data = generate_alignment_matrix_row(unit_name, outcome, course_title=title, job_id=job_id)
             assessment_type = row_data.get("assessment_type", "SQ")
             hours = row_data.get("notional_hours", 2)
             total_hours += hours

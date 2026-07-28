@@ -6,6 +6,7 @@ from flask import current_app
 from anthropic import Anthropic
 from groq import Groq
 from app.services.ai_config import get_model_for_task
+import google.generativeai as genai
 
 import re
 
@@ -89,12 +90,12 @@ Preserve the original structure and wording as closely as possible — this is r
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
 
-def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 12, job_id: str = None) -> str:
-    """Routes a prompt to the task's primary provider. If the primary provider is out of
-    credits/quota (a billing error, not a rate limit), automatically falls back to the
-    task's configured fallback provider. Rate limits are retried with backoff as before;
-    credit/billing errors switch provider immediately rather than retrying."""
+def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 4, job_id: str = None) -> str:
+    """Tries each provider in the task's chain in order (free options first, paid last).
+    Within each provider, retries on rate limits with backoff up to max_retries; if a
+    provider is out of credits or exhausts its retries, moves to the next in the chain."""
     routing = get_model_for_task(task)
+    chain = routing["chain"]
 
     def _attempt(provider, model):
         for attempt in range(max_retries):
@@ -105,8 +106,7 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
                         raise RuntimeError("ANTHROPIC_API_KEY is not configured")
                     client = Anthropic(api_key=api_key)
                     response = client.messages.create(
-                        model=model,
-                        max_tokens=max_tokens,
+                        model=model, max_tokens=max_tokens,
                         messages=[{"role": "user", "content": prompt}],
                     )
                     return "".join(block.text for block in response.content if block.type == "text")
@@ -117,21 +117,46 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
                         raise RuntimeError("GROQ_API_KEY is not configured")
                     client = Groq(api_key=api_key)
                     response = client.chat.completions.create(
-                        model=model,
-                        max_tokens=max_tokens,
+                        model=model, max_tokens=max_tokens,
                         messages=[{"role": "user", "content": prompt}],
                     )
                     return response.choices[0].message.content
+
+                if provider == "gemini":
+                    api_key = current_app.config.get("GEMINI_API_KEY")
+                    if not api_key:
+                        raise RuntimeError("GEMINI_API_KEY is not configured")
+                    import google.generativeai as genai
+                    genai.configure(api_key=api_key)
+                    gemini_model = genai.GenerativeModel(model)
+                    response = gemini_model.generate_content(
+                        prompt,
+                        generation_config={"max_output_tokens": max_tokens},
+                    )
+                    return response.text
+
+                if provider == "nyra":
+                    api_key = current_app.config.get("NYRA_API_KEY")
+                    if not api_key:
+                        raise RuntimeError("NYRA_API_KEY is not configured")
+                    import requests as _requests
+                    resp = _requests.post(
+                        "https://router.bynara.id/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        json={"model": model, "max_tokens": max_tokens,
+                              "messages": [{"role": "user", "content": prompt}]},
+                        timeout=60,
+                    )
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"Nyra error {resp.status_code}: {resp.text}")
+                    return resp.json()["choices"][0]["message"]["content"]
 
                 raise ValueError(f"Unknown provider '{provider}'")
 
             except Exception as exc:
                 error_str = str(exc).lower()
 
-                # Check rate-limit FIRST — Groq's own rate-limit messages happen to mention
-                # "billing" (a link to their billing page), which would otherwise be
-                # misclassified as a credits error and skip the retry-and-wait logic entirely.
-                if "rate_limit" in error_str or "429" in error_str:
+                if "rate_limit" in error_str or "429" in error_str or "rate limit" in error_str:
                     wait_match = re.search(r'try again in (?:(\d+)m)?([\d.]+)s', str(exc))
                     if wait_match:
                         minutes = int(wait_match.group(1)) if wait_match.group(1) else 0
@@ -139,7 +164,7 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
                         wait_time = minutes * 60 + seconds + 3
                     else:
                         wait_time = min(10 * (attempt + 1), 60)
-                    wait_time = min(wait_time, 1800)  # allow waits up to 30 minutes for daily-limit resets
+                    wait_time = min(wait_time, 120)  # capped short — we have more providers to fall through to
 
                     if job_id:
                         from app.models.generation_job import GenerationJob
@@ -164,17 +189,24 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
 
                 raise
 
-        raise RuntimeError(f"AI call failed after {max_retries} retries (rate limited) on {provider}")
+        raise RuntimeError(f"{provider} exhausted {max_retries} retries")
 
-    try:
-        return _attempt(routing["provider"], routing["model"])
-    except _OutOfCreditsError as exc:
-        fallback_provider = routing.get("fallback_provider")
-        fallback_model = routing.get("fallback_model")
-        if not fallback_provider:
-            raise RuntimeError(f"Primary provider out of credits and no fallback configured: {exc}") from exc
-        print(f"[FALLBACK] Primary provider out of credits ({exc}) — switching to {fallback_provider}/{fallback_model}")
-        return _attempt(fallback_provider, fallback_model)
+    last_error = None
+    for step in chain:
+        try:
+            result = _attempt(step["provider"], step["model"])
+            return result
+        except (_OutOfCreditsError, RuntimeError) as exc:
+            last_error = exc
+            print(f"[CHAIN] {step['provider']} unavailable ({exc}) — trying next provider in chain")
+            continue
+
+    raise RuntimeError(f"All providers in chain failed. Last error: {last_error}")
+
+
+class _OutOfCreditsError(Exception):
+    """Internal signal that a provider is out of credits/quota — triggers moving to the next in chain."""
+    pass
 
 
 class _OutOfCreditsError(Exception):
@@ -182,7 +214,7 @@ class _OutOfCreditsError(Exception):
     pass
 
 
-def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+def write_chapter_content(unit_name: str, outcomes: list, course_title: str = None, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Writes full chapter content for one syllabus unit. Returns a structured dict where
     each section is a list of typed content blocks (paragraph, scenario, table, formula)
     so the document builder can render each one with distinct, appropriate styling."""
@@ -195,7 +227,10 @@ def write_chapter_content(unit_name: str, outcomes: list, seta: str = None, nqf_
 
     prompt = f"""You are a subject-matter expert writing a chapter for a South African
 SETA/QCTO-accredited training textbook, in the style of real accredited SETA learner guides.
-
+COURSE CONTEXT — this chapter belongs to the course "{course_title or 'Unspecified Course'}". Every
+example, scenario, and piece of terminology in this chapter MUST be genuinely relevant to that course's
+actual subject matter. If a unit name or outcome is vague, interpret it strictly in the context of
+"{course_title}" — never substitute in content from an unrelated field.
 Chapter: {unit_name}
 {chr(10).join(context_lines)}
 
@@ -242,12 +277,16 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, e.g. Z = C + E - D", "variables": [{{"symbol": "Z", "meaning": "what Z represents"}}, {{"symbol": "C", "meaning": "what C represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
         {{"type": "list", "items": ["<item 1>", "<item 2>", "<item 3>"], "ordered": false}},
-        {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
+        {{"type": "image", "search_term": "SPECIFIC concrete search phrase naming the exact real object/scene relevant to this outcome (e.g. 'fire extinguisher workplace' not 'safety equipment')", "caption": "What this image shows"}}
       ]
     }}
   ],
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>", "<concise takeaway 3>"]
 }}
+
+Use "diagram" for any step-by-step process, sequence, or decision flow. Use "image" ONLY for a
+concrete physical object, tool, environment, or scene that a real photograph would meaningfully
+illustrate — never use "image" for abstract concepts or processes a diagram would represent better.
 
 Only the FIRST section needs an info_box scope block. Every section needs at least one paragraph
 block. Only include scenario/table/formula/diagram/image/list blocks where genuinely relevant — do
@@ -259,7 +298,7 @@ NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "
 set "ordered": true for sequential steps, "ordered": false for unordered items."""
 
     for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=4500, job_id=job_id)
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=8192, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
@@ -270,7 +309,7 @@ set "ordered": true for sequential steps, "ordered": false for unordered items."
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+def generate_slide_content(unit_name: str, outcomes: list, course_title: str = None, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Generates 1-2 slides for one syllabus unit: a teaching slide, and (where the
     content suits it) a practice/exercise slide applying the concept — matching the
     real pattern of alternating instruction and hands-on practice in accredited decks."""
@@ -285,6 +324,11 @@ def generate_slide_content(unit_name: str, outcomes: list, seta: str = None, nqf
 training presentation, in the style of real accredited training decks: punchy fragment-style
 bullets (not full sentences), concrete worked numbers where relevant, and a clear teach-then-
 practice rhythm.
+
+COURSE CONTEXT — these slides belong to the course "{course_title or 'Unspecified Course'}". Every
+example, bullet, and worked exercise MUST be genuinely relevant to that course's actual subject
+matter. If the unit name or an outcome is vague, interpret it strictly in the context of
+"{course_title}" — never substitute in content from an unrelated field.
 
 Unit: {unit_name}
 {chr(10).join(context_lines)}
@@ -338,7 +382,7 @@ Omit the practice slide entirely from the array if this unit has nothing practic
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def generate_assessment_questions(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+def generate_assessment_questions(unit_name: str, outcomes: list, course_title: str = None, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Generates test questions for one syllabus unit, covering its learning outcomes.
     Returns structured JSON so the docx builder can render blank space and marks per question."""
     outcomes_text = "\n".join(f"- {o}" for o in outcomes)
@@ -350,6 +394,11 @@ def generate_assessment_questions(unit_name: str, outcomes: list, seta: str = No
 
     prompt = f"""You are writing assessment questions for a South African SETA/QCTO-accredited
 workplace training assessment.
+
+COURSE CONTEXT — this assessment belongs to the course "{course_title or 'Unspecified Course'}". Every
+question and scenario MUST be genuinely relevant to that course's actual subject matter. If the unit
+name or an outcome is vague, interpret it strictly in the context of "{course_title}" — never
+substitute in content from an unrelated field.
 
 Unit: {unit_name}
 {chr(10).join(context_lines)}
@@ -411,7 +460,7 @@ DOCUMENT_PROMPT_FRAMING = {
 }
 
 
-def generate_guide_section_content(document_subtype: str, unit_name: str, outcomes: list,
+def generate_guide_section_content(document_subtype: str, unit_name: str, outcomes: list, course_title: str = None,
                                     seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Generates section content for one unit of a SETA guide-style document
     (facilitator guide, assessment guide, etc). Shares the same block-typed shape
@@ -426,6 +475,10 @@ def generate_guide_section_content(document_subtype: str, unit_name: str, outcom
 
     prompt = f"""You are writing content for {framing}, for a South African SETA/QCTO-accredited
 training programme, in the style of real accredited SETA learner/facilitator guides.
+COURSE CONTEXT — this chapter belongs to the course "{course_title or 'Unspecified Course'}". Every
+example, scenario, and piece of terminology in this chapter MUST be genuinely relevant to that course's
+actual subject matter. If a unit name or outcome is vague, interpret it strictly in the context of
+"{course_title}" — never substitute in content from an unrelated field.
 
 Write content grounded in the ACTUAL subject matter of this unit — do not force unrelated industrial,
 workplace-safety, or manufacturing framing onto topics that aren't about that (e.g. a programming or IT
@@ -467,16 +520,16 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "formula", "label": "Short name", "text": "The formula itself", "variables": [{{"symbol": "X", "meaning": "what X represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
         {{"type": "list", "items": ["<item 1>", "<item 2>", "<item 3>"], "ordered": false}},
-        {{"type": "image", "search_term": "2-4 word search phrase for a relevant stock photo", "caption": "What this image shows"}}
+        {{"type": "image", "search_term": "SPECIFIC concrete search phrase naming the exact real object/scene relevant to this outcome (e.g. 'fire extinguisher workplace' not 'safety equipment')", "caption": "What this image shows"}}
       ]
     }}
   ],
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>"]
 }}
 
-Only the FIRST section needs an info_box scope block. Only include table, formula, diagram, image, or
-list blocks where genuinely relevant to this specific document type — most sections should just be a
-paragraph block. One section per learning outcome. Plain text only, no markdown.
+Use "diagram" for any step-by-step process, sequence, or decision flow. Use "image" ONLY for a concrete physical object, tool, environment, or scene that a real photograph would meaningfully illustrate—never use "image" for abstract concepts or processes a diagram would represent better.
+
+Only the FIRST section needs an info_box scope block. Every section needs at least one paragraph block. Only include scenario/table/formula/diagram/image/list blocks where genuinely relevant—do not force them into every section. One section per learning outcome. Plain text only inside strings—no asterisks, no markdown headers.
 
 NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "1) X 2) Y 3) Z" or
 "firstly... secondly..."). Whenever you have 3 or more related items, use a "list" block instead —
@@ -494,7 +547,7 @@ set "ordered": true for sequential steps, "ordered": false for unordered items."
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def generate_facilitator_guide_content(unit_name: str, outcomes: list, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
+def generate_facilitator_guide_content(unit_name: str, outcomes: list, course_title: str = None, seta: str = None, nqf_level: str = None, job_id: str = None) -> dict:
     """Generates model-answer assessment content for a Facilitator/Assessor Guide,
     matching the real INSETA-style format: activities with model answers marked by
     key scoreable points and mark allocations, plus unit standard reference data."""
@@ -509,6 +562,11 @@ def generate_facilitator_guide_content(unit_name: str, outcomes: list, seta: str
 SETA/QCTO-accredited training programme, in the style of real accredited assessor guides.
 This document gives the ASSESSOR the model answers and marking guidance for the formative
 assessment activity covering this unit — it is not learner-facing content.
+
+COURSE CONTEXT — this belongs to the course "{course_title or 'Unspecified Course'}". Every question
+and model answer MUST be genuinely relevant to that course's actual subject matter. If the unit name
+or an outcome is vague, interpret it strictly in the context of "{course_title}" — never substitute
+in content from an unrelated field.
 
 Unit: {unit_name}
 {chr(10).join(context_lines)}
@@ -612,11 +670,14 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def generate_alignment_matrix_row(unit_name: str, outcome: str, job_id: str = None) -> dict:
+def generate_alignment_matrix_row(unit_name: str, outcome: str, course_title: str = None, job_id: str = None) -> dict:
     """Generates the assessment-type classification for one learning outcome, for the
     Programme Alignment Matrix — matching real INSETA-style traceability tables."""
     prompt = f"""For this single learning outcome from a South African SETA/QCTO-accredited
 training programme, classify how it would typically be assessed.
+
+COURSE CONTEXT — this belongs to the course "{course_title or 'Unspecified Course'}". Interpret the
+unit and outcome strictly in that context.
 
 Unit: {unit_name}
 Outcome: {outcome}

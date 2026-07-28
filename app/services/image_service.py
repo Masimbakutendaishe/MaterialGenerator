@@ -8,41 +8,92 @@ from flask import current_app
 
 
 def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: str = "F39C12") -> bytes:
-    """Renders a simple top-to-bottom flow diagram from a list of step labels.
-    Returns PNG bytes. No AI call — pure matplotlib rendering."""
+    """Renders a flow diagram from a list of step labels, with boxes sized to fit their
+    text and varied shapes (rounded rect / diamond / oval) to distinguish step types.
+    No AI call — pure matplotlib rendering."""
     primary = f"#{primary_hex.lstrip('#')}"
     accent = f"#{accent_hex.lstrip('#')}"
 
-    fig_height = max(2, len(steps) * 1.2)
-    fig, ax = plt.subplots(figsize=(6, fig_height))
+    def _wrap_text(text, max_chars_per_line=22):
+        """Wraps long labels onto multiple lines instead of letting them overflow the box."""
+        words = text.split()
+        lines, current = [], ""
+        for word in words:
+            if len(current) + len(word) + 1 <= max_chars_per_line:
+                current = f"{current} {word}".strip()
+            else:
+                lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        return "\n".join(lines)
+
+    def _shape_for_step(index, total, label):
+        """Decides shape based on position/content: oval for start/end, diamond for
+        decision-sounding steps (containing '?' or starting with common decision words),
+        rounded rectangle for everything else."""
+        label_lower = label.lower()
+        if index == 0 or index == total - 1:
+            return "oval"
+        if "?" in label or any(label_lower.startswith(w) for w in ("if ", "check ", "decide", "is ")):
+            return "diamond"
+        return "rect"
+
+    wrapped_steps = [_wrap_text(s) for s in steps]
+    line_counts = [w.count("\n") + 1 for w in wrapped_steps]
+
+    box_height_base = 0.55
+    box_heights = [box_height_base + (lc - 1) * 0.22 for lc in line_counts]  # grow box with line count
+    gap = 0.5
+
+    fig_height = sum(box_heights) + gap * (len(steps) - 1) + 1
+    fig, ax = plt.subplots(figsize=(6.5, fig_height))
     ax.axis("off")
 
-    box_height = 0.7
-    gap = 0.5
-    y = len(steps) * (box_height + gap)
+    y = fig_height - 0.5
+    box_width = 0.75
 
-    for i, step in enumerate(steps):
-        y_pos = y - i * (box_height + gap)
-        rect = plt.Rectangle((0.1, y_pos), 0.8, box_height, facecolor=primary, edgecolor=primary, alpha=0.9)
-        ax.add_patch(rect)
-        ax.text(0.5, y_pos + box_height / 2, step, ha="center", va="center",
-                 color="white", fontsize=10, fontweight="bold", wrap=True)
+    for i, (label, height) in enumerate(zip(wrapped_steps, box_heights)):
+        y_pos = y - height
+        shape_type = _shape_for_step(i, len(steps), steps[i])
+        cx, cy = 0.5, y_pos + height / 2
+
+        if shape_type == "oval":
+            patch = plt.matplotlib.patches.Ellipse((cx, cy), box_width, height, facecolor=primary, edgecolor=primary, alpha=0.9)
+        elif shape_type == "diamond":
+            # slightly taller diamond so wrapped text fits within the point-to-point width
+            half_w, half_h = box_width / 2, height / 2 + 0.15
+            patch = plt.matplotlib.patches.Polygon(
+                [(cx, cy + half_h), (cx + half_w, cy), (cx, cy - half_h), (cx - half_w, cy)],
+                closed=True, facecolor=accent, edgecolor=accent, alpha=0.9,
+            )
+        else:
+            patch = plt.matplotlib.patches.FancyBboxPatch(
+                (cx - box_width / 2, y_pos), box_width, height,
+                boxstyle="round,pad=0.02,rounding_size=0.08",
+                facecolor=primary, edgecolor=primary, alpha=0.9,
+            )
+
+        ax.add_patch(patch)
+        ax.text(cx, cy, label, ha="center", va="center", color="white", fontsize=9, fontweight="bold")
 
         if i < len(steps) - 1:
+            next_height = box_heights[i + 1]
             arrow_y_start = y_pos
             arrow_y_end = y_pos - gap
-            ax.annotate("", xy=(0.5, arrow_y_end), xytext=(0.5, arrow_y_start),
+            ax.annotate("", xy=(cx, arrow_y_end), xytext=(cx, arrow_y_start),
                         arrowprops=dict(arrowstyle="-|>", color=accent, lw=2))
 
+        y = y_pos - gap
+
     ax.set_xlim(0, 1)
-    ax.set_ylim(0, y + box_height)
+    ax.set_ylim(0, fig_height)
 
     buffer = io.BytesIO()
     plt.savefig(buffer, format="png", dpi=150, bbox_inches="tight", transparent=True)
     plt.close(fig)
     buffer.seek(0)
     return buffer.read()
-
 
 def fetch_stock_photo(search_term: str) -> bytes | None:
     """Fetches one relevant photo from Unsplash for the given search term.

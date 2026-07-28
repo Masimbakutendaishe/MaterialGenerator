@@ -1,12 +1,20 @@
-"""Maps generation tasks to specific models/providers, with an automatic fallback
-provider used if the primary provider is out of credits/quota. Change routing here only —
-nothing elsewhere in the app should hardcode a model name."""
+"""Maps generation tasks to an ORDERED CHAIN of providers, tried in sequence: free
+options first, paid last. If one provider is out of credits/quota or exhausts its
+retries, the next in the chain is tried automatically."""
+
+
+DEFAULT_CHAIN = [
+    {"provider": "nyra", "model": "agnes-2.0-flash"},
+    {"provider": "gemini", "model": "gemini-flash-latest"},
+    {"provider": "groq", "model": "openai/gpt-oss-120b"},
+    {"provider": "anthropic", "model": "claude-sonnet-5"},
+]
 
 TASK_MODEL_MAP = {
-    "syllabus_generation":   {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
-    "syllabus_structuring":  {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
-    "textbook_writing":      {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
-    "slide_content":         {"provider": "anthropic", "model": "claude-sonnet-5", "fallback_provider": "groq", "fallback_model": "openai/gpt-oss-120b"},
+    "syllabus_generation":   {"chain": DEFAULT_CHAIN},
+    "syllabus_structuring":  {"chain": DEFAULT_CHAIN},
+    "textbook_writing":      {"chain": DEFAULT_CHAIN},
+    "slide_content":         {"chain": DEFAULT_CHAIN},
 }
 
 

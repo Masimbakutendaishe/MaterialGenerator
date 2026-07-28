@@ -48,7 +48,7 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
         heading_run.font.color.rgb = primary
         _add_bottom_border(heading, primary_hex)
 
-        content = generate_guide_section_content(document_subtype, unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
+        content = generate_guide_section_content(document_subtype, unit_name, outcomes, course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
 
         if content.get("intro"):
             intro_p = doc.add_paragraph()

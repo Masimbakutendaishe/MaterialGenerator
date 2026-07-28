@@ -32,7 +32,14 @@
             <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="Material Generator" class="h-8 w-auto">
             <span class="font-semibold text-base tracking-tight text-white">Material Generator</span>
         </div>
-        <div class="flex gap-6 items-center text-sm">
+
+        <button onclick="toggleMobileMenu()" class="md:hidden text-steel-300 hover:text-white">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+
+        <div class="hidden md:flex gap-6 items-center text-sm">
             <span class="border border-navy-600 px-2 py-0.5 rounded text-xs uppercase tracking-wide text-steel-300">{{ current_user.role }}</span>
             <a href="{{ url_for('web.dashboard') }}" class="text-steel-300 hover:text-white transition">Dashboard</a>
 
@@ -85,6 +92,29 @@
         </div>
     </nav>
 
+    <div id="mobile-menu" class="hidden md:hidden flex flex-col gap-1 text-sm bg-navy-900 px-8 py-4 border-b border-navy-700">
+        <span class="border border-navy-600 px-2 py-0.5 rounded text-xs uppercase tracking-wide text-steel-300 inline-block mb-2 w-fit">{{ current_user.role }}</span>
+        <a href="{{ url_for('web.dashboard') }}" class="text-steel-300 hover:text-white transition py-2">Dashboard</a>
+
+        {% if current_user.role in ('user', 'org_admin') %}
+        <a href="{{ url_for('syllabus_web.list_syllabi') }}" class="text-steel-300 hover:text-white transition py-2">Syllabi</a>
+        <a href="{{ url_for('generation_web.index') }}" class="text-steel-300 hover:text-white transition py-2">Generate</a>
+        <a href="{{ url_for('branding_web.branding') }}" class="text-steel-300 hover:text-white transition py-2">Branding</a>
+        {% endif %}
+
+        {% if current_user.role in ('qa_reviewer', 'user', 'org_admin') %}
+        <a href="{{ url_for('review_web.list_reviews') }}" class="text-steel-300 hover:text-white transition py-2">Reviews</a>
+        {% endif %}
+
+        {% if current_user.role == 'superadmin' %}
+        <a href="{{ url_for('web_admin.organizations') }}" class="text-steel-300 hover:text-white transition py-2">Admin</a>
+        <a href="{{ url_for('web_admin.password_resets') }}" class="text-steel-300 hover:text-white transition py-2">Password Resets</a>
+        {% endif %}
+
+        <a href="{{ url_for('web.profile') }}" class="text-steel-300 hover:text-white transition py-2">Edit Profile</a>
+        <a href="{{ url_for('web.logout') }}" class="text-red-400 hover:text-red-300 transition py-2">Logout</a>
+    </div>
+
     <script>
         function updateNotifBadge() {
             fetch("{{ url_for('review_web.notification_count') }}")
@@ -110,6 +140,10 @@
             } else {
                 dropdown.classList.add('hidden');
             }
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
         }
 
         function toggleProfileMenu() {

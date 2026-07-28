@@ -10,11 +10,16 @@ from app.services.document_service import (
 import json
 
 
-def _generate_poe_item(unit_name: str, outcome: str, job_id: str = None) -> dict:
+def _generate_poe_item(unit_name: str, outcome: str, course_title: str = None, job_id: str = None) -> dict:
     """Generates a question, answer space, and evidence checklist for one learning outcome —
     a genuine learner-facing Portfolio of Evidence item, not just a table row."""
     prompt = f"""For this learning outcome from a South African SETA/QCTO-accredited programme,
 write ONE Portfolio of Evidence item for the learner.
+
+COURSE CONTEXT — this belongs to the course "{course_title or 'Unspecified Course'}". The question
+and evidence examples MUST be genuinely relevant to that course's actual subject matter. If the unit
+name or outcome is vague, interpret it strictly in the context of "{course_title}" — never substitute
+in content from an unrelated field.
 
 Unit: {unit_name}
 Outcome: {outcome}
@@ -71,7 +76,7 @@ def build_poe_guide_docx(title: str, units: list, organization_name: str = None,
         uh_run.font.color.rgb = primary
 
         for outcome in unit.get("outcomes", []):
-            item = _generate_poe_item(unit_name, outcome, job_id=job_id)
+            item = _generate_poe_item(unit_name, outcome, course_title=title, job_id=job_id)
 
             q_para = doc.add_paragraph()
             q_para.paragraph_format.space_before = Pt(10)

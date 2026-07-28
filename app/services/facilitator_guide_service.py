@@ -45,7 +45,7 @@ def build_facilitator_guide_docx(title: str, units: list, organization_name: str
         unit_name = unit.get("name", f"Unit {i}")
         outcomes = unit.get("outcomes", [])
 
-        content = generate_facilitator_guide_content(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
+        content = generate_facilitator_guide_content(unit_name, outcomes, course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
 
         section_heading = doc.add_paragraph()
         sh_run = section_heading.add_run(f"Section {i}: {unit_name}")

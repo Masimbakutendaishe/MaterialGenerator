@@ -20,7 +20,8 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
                            seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
                            brand_colors: dict = None, job_id: str = None, doc_label: str = "Assessment") -> BytesIO:
     brand_colors = brand_colors or {}
-    primary = _hex_to_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
+    primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
+    primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
 
     doc = Document()
 
@@ -50,7 +51,7 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
         heading_run.font.size = Pt(16)
         heading_run.font.color.rgb = primary
 
-        result = generate_assessment_questions(unit_name, outcomes, seta=seta, nqf_level=nqf_level, job_id=job_id)
+        result = generate_assessment_questions(unit_name, outcomes, course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
         questions = result.get("questions", [])
 
         for q in questions:
