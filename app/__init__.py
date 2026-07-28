@@ -47,7 +47,7 @@ def create_app(config_name=None):
         ],
         'style-src': ["'self'", "'unsafe-inline'"],  # Tailwind injects styles inline
         'font-src': ["'self'", "data:"],
-        'img-src': ["'self'", "data:", "blob:", "http://localhost:9000", "http://127.0.0.1:9000"],
+        'img-src': ["'self'", "data:", "blob:", "http://localhost:9000", "http://127.0.0.1:9000", "https://*.r2.cloudflarestorage.com"],
     }
     Talisman(app, force_https=(config_name == "production"), content_security_policy=csp)
 
