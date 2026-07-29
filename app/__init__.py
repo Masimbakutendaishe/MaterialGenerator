@@ -41,9 +41,10 @@ def create_app(config_name=None):
         'default-src': "'self'",
         'script-src': [
             "'self'",
-            "'unsafe-inline'",  # needed for the small inline Tailwind config script
+            "'unsafe-inline'",
             "https://cdn.tailwindcss.com",
             "https://cdnjs.cloudflare.com",
+            "https://static.cloudflareinsights.com",
         ],
         'style-src': ["'self'", "'unsafe-inline'"],  # Tailwind injects styles inline
         'font-src': ["'self'", "data:"],
