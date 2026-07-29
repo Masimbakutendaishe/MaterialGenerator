@@ -18,14 +18,11 @@ def _client():
         region_name="us-east-1",  # MinIO ignores this; required by boto3's client either way
     )
 def ensure_bucket_exists():
-    """Verifies the configured bucket is reachable with current credentials. Does NOT
-    attempt to create it — R2 buckets should already exist (created manually in the
-    Cloudflare dashboard); attempting creation here would require broader permissions
-    than the app's token needs, and masks real credential/config errors as bucket-missing
-    errors instead."""
-    bucket = current_app.config.get("S3_BUCKET")
-    client = _client()
-    client.head_bucket(Bucket=bucket)  # raises a clear ClientError if credentials/bucket are wrong
+    """No-op: R2 buckets are created manually in the Cloudflare dashboard and always
+    expected to exist. Checking via head_bucket requires bucket-level permissions some
+    R2 API tokens don't grant even when scoped to full object read/write — so we skip
+    the check entirely and let the actual upload/download call surface any real error."""
+    pass
 
 
 def upload_file(file_bytes: bytes, key: str, content_type: str) -> str:
