@@ -140,13 +140,16 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
                     if not api_key:
                         raise RuntimeError("NYRA_API_KEY is not configured")
                     import requests as _requests
-                    resp = _requests.post(
-                        "https://router.bynara.id/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                        json={"model": model, "max_tokens": max_tokens,
-                              "messages": [{"role": "user", "content": prompt}]},
-                        timeout=60,
-                    )
+                    try:
+                        resp = _requests.post(
+                            "https://router.bynara.id/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                            json={"model": model, "max_tokens": max_tokens,
+                                  "messages": [{"role": "user", "content": prompt}]},
+                            timeout=60,
+                        )
+                    except _requests.exceptions.RequestException as exc:
+                        raise RuntimeError(f"Nyra connection error: {exc}") from exc
                     if resp.status_code != 200:
                         raise RuntimeError(f"Nyra error {resp.status_code}: {resp.text}")
                     resp_json = resp.json()
