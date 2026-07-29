@@ -276,3 +276,18 @@ def debug_latest_job():
         "result_file_path": job.result_file_path,
         "document_subtype": job.document_subtype,
     }
+
+
+@web_bp.route("/debug-latest-job/<subtype>")
+@login_required
+def debug_latest_job_by_type(subtype):
+    from app.models.generation_job import GenerationJob
+    job = GenerationJob.query.filter_by(document_subtype=subtype).order_by(GenerationJob.created_at.desc()).first()
+    if not job:
+        return {"error": "no jobs found for this subtype"}, 404
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "error_message": job.error_message,
+        "document_subtype": job.document_subtype,
+    }
