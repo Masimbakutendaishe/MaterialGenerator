@@ -245,3 +245,17 @@ def force_change_password():
         return redirect(url_for("web.dashboard"))
 
     return render_template("force_change_password.html")
+
+@web_bp.route("/debug-job/<job_id>")
+@login_required
+def debug_job(job_id):
+    from app.models.generation_job import GenerationJob
+    job = GenerationJob.query.get(job_id)
+    if not job:
+        return {"error": "not found"}, 404
+    return {
+        "status": job.status,
+        "error_message": job.error_message,
+        "task_id": job.task_id,
+        "result_file_path": job.result_file_path,
+    }
