@@ -259,3 +259,20 @@ def debug_job(job_id):
         "task_id": job.task_id,
         "result_file_path": job.result_file_path,
     }
+
+
+@web_bp.route("/debug-latest-job")
+@login_required
+def debug_latest_job():
+    from app.models.generation_job import GenerationJob
+    job = GenerationJob.query.order_by(GenerationJob.created_at.desc()).first()
+    if not job:
+        return {"error": "no jobs found"}, 404
+    return {
+        "job_id": job.id,
+        "status": job.status,
+        "error_message": job.error_message,
+        "task_id": job.task_id,
+        "result_file_path": job.result_file_path,
+        "document_subtype": job.document_subtype,
+    }
