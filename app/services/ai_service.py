@@ -193,7 +193,10 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
                 if "credit balance" in error_str or "insufficient_quota" in error_str:
                     raise _OutOfCreditsError(str(exc)) from exc
 
-                raise
+                # Any other unexpected error (malformed response, SDK-specific exception, etc.)
+                # gets wrapped as RuntimeError so the chain-walking loop can catch it and
+                # move to the next provider, instead of crashing the whole generation.
+                raise RuntimeError(f"{provider} error: {exc}") from exc
 
         raise RuntimeError(f"{provider} exhausted {max_retries} retries")
 
