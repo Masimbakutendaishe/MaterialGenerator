@@ -149,7 +149,10 @@ def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int
                     )
                     if resp.status_code != 200:
                         raise RuntimeError(f"Nyra error {resp.status_code}: {resp.text}")
-                    return resp.json()["choices"][0]["message"]["content"]
+                    resp_json = resp.json()
+                    if "choices" not in resp_json or not resp_json["choices"]:
+                        raise RuntimeError(f"Nyra returned an unexpected response shape (no 'choices'): {resp.text[:300]}")
+                    return resp_json["choices"][0]["message"]["content"]
 
                 raise ValueError(f"Unknown provider '{provider}'")
 
