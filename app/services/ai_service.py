@@ -549,7 +549,7 @@ NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "
 set "ordered": true for sequential steps, "ordered": false for unordered items."""
 
     for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=5000, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
@@ -610,7 +610,7 @@ evaluation_criteria should be 1-3 short yes/no checklist items an assessor uses 
 the learner met this activity's requirements — phrased as questions."""
 
     for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=2000, job_id=job_id)
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=5000, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
