@@ -10,7 +10,8 @@ from flask import current_app
 
 def _client():
     access_key = current_app.config.get("S3_ACCESS_KEY")
-    print(f"[DEBUG] Using S3_ACCESS_KEY starting with: {access_key[:8] if access_key else 'NONE'}...")
+    import sys
+    print(f"[DEBUG] Using S3_ACCESS_KEY starting with: {access_key[:8] if access_key else 'NONE'}...", flush=True, file=sys.stderr)
     return boto3.client(
         "s3",
         endpoint_url=current_app.config.get("S3_ENDPOINT_URL"),
