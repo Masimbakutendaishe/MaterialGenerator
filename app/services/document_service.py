@@ -44,7 +44,7 @@ def _add_full_border(paragraph, color_hex: str):
         p_borders.append(border)
     p_pr.append(p_borders)
 
-def _render_content_block(doc, block, primary_hex, secondary):
+def _render_content_block(doc, block, primary_hex, secondary, accent_hex=None):
     if isinstance(block, str):
         # Defensive: some AI responses occasionally emit a raw string instead of a
         # proper {"type": "paragraph", "text": ...} block — treat it as plain paragraph text.
