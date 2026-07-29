@@ -18,7 +18,7 @@ def _client():
         aws_access_key_id=access_key,
         aws_secret_access_key=current_app.config.get("S3_SECRET_KEY"),
         config=Config(signature_version="s3v4"),
-        region_name="us-east-1",
+        region_name="auto",
     )
 def ensure_bucket_exists():
     """No-op: R2 buckets are created manually in the Cloudflare dashboard and always
