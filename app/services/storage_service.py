@@ -9,13 +9,15 @@ from flask import current_app
 
 
 def _client():
+    access_key = current_app.config.get("S3_ACCESS_KEY")
+    print(f"[DEBUG] Using S3_ACCESS_KEY starting with: {access_key[:8] if access_key else 'NONE'}...")
     return boto3.client(
         "s3",
         endpoint_url=current_app.config.get("S3_ENDPOINT_URL"),
-        aws_access_key_id=current_app.config.get("S3_ACCESS_KEY"),
+        aws_access_key_id=access_key,
         aws_secret_access_key=current_app.config.get("S3_SECRET_KEY"),
         config=Config(signature_version="s3v4"),
-        region_name="us-east-1",  # MinIO ignores this; required by boto3's client either way
+        region_name="us-east-1",
     )
 def ensure_bucket_exists():
     """No-op: R2 buckets are created manually in the Cloudflare dashboard and always
