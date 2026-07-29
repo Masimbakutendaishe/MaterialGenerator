@@ -12,11 +12,15 @@ import re
 
 
 def _repair_json_string(raw: str) -> str:
-    """Fixes the most common way AI models break JSON: emitting a backslash that isn't
-    part of a valid JSON escape sequence (\\", \\\\, \\n, \\t, \\r, \\b, \\f, \\uXXXX).
-    Doubles up any other backslash so it's treated as a literal character instead of
-    an invalid escape."""
-    return re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
+    """Fixes common ways AI models break JSON: stray backslashes, trailing commas
+    before closing brackets/braces, and markdown code fences wrapping the response."""
+    # Strip markdown code fences if the model wrapped its JSON in ```json ... ```
+    raw = re.sub(r'^```(?:json)?\s*|\s*```$', '', raw.strip())
+    # Fix stray backslashes not part of a valid JSON escape
+    raw = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
+    # Remove trailing commas before a closing } or ]
+    raw = re.sub(r',(\s*[}\]])', r'\1', raw)
+    return raw
 
 def generate_syllabus(topic: str, seta: str = None, nqf_level: str = None) -> dict:
     """Generates a structured syllabus (units + learning outcomes) for a given topic."""
