@@ -30,38 +30,34 @@
                 <th class="text-right px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Action</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="package-jobs-tbody">
             {% for job in package.jobs %}
-            <tr class="border-b border-steel-100">
-                <td class="px-6 py-3 text-navy-950 font-medium capitalize">{{ job.document_subtype.replace('_', ' ') }}</td>
-                <td class="px-6 py-3">
-                    <span class="inline-flex items-center gap-1.5 text-xs font-medium
-                        {% if job.status == 'done' %}text-green-700
-                        {% elif job.status in ('failed', 'cancelled') %}text-red-700
-                        {% else %}text-signal{% endif %}">
-                        {% if job.status in ('queued', 'running') %}
-                        <span class="inline-block w-3 h-3 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
-                        {% endif %}
-                        {{ job.status }}
-                    </span>
-                </td>
-                <td class="px-6 py-3 text-right">
-                    {% if job.status == 'done' and can_download %}
-                        <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline">Download</a>
-                    {% elif job.status == 'failed' %}
-                        <span class="text-red-600 text-xs">{{ job.error_message or 'Failed' }}</span>
-                    {% elif job.status in ('queued', 'running') %}
-                        <form method="POST" action="{{ url_for('generation_web.cancel', job_id=job.id) }}" class="inline">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <button type="submit" class="text-red-600 font-medium hover:underline text-xs">Cancel</button>
-                        </form>
-                    {% elif job.status == 'cancelled' %}
-                        <span class="text-steel-400 text-xs">Cancelled</span>
-                    {% endif %}
-                </td>
-            </tr>
+            {% include "generate/_package_job_row.html" %}
             {% endfor %}
         </tbody>
     </table>
 </div>
+
+<script>
+function pollPackageJobs() {
+    document.querySelectorAll('#package-jobs-tbody tr[data-job-id]').forEach(row => {
+        const statusEl = row.querySelector('.package-job-status');
+        if (!statusEl) return;
+        const currentStatus = statusEl.dataset.status;
+        if (['done', 'failed', 'cancelled'].includes(currentStatus)) return;
+
+        const jobId = row.dataset.jobId;
+        fetch(`/generate/package-job-row/${jobId}`)
+            .then(r => r.text())
+            .then(html => {
+                const temp = document.createElement('tbody');
+                temp.innerHTML = html;
+                row.replaceWith(temp.firstElementChild);
+            });
+    });
+}
+setInterval(pollPackageJobs, 4000);
+</script>
+{% endblock %}
+
 {% endblock %}

@@ -14,6 +14,7 @@ class GenerationJob(db.Model):
 
     material_type = db.Column(db.String(50), nullable=False)  # "textbook" | "presentation"
     status = db.Column(db.String(50), nullable=False, default="queued")  # "queued" | "running" | "done" | "failed"
+    started_at = db.Column(db.DateTime, nullable=True)  # set when the Celery task actually begins executing
     result_file_path = db.Column(db.String(500), nullable=True)  # local path for now, S3 URL later
 
     

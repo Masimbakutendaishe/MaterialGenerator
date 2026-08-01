@@ -22,6 +22,8 @@ def generate_textbook_task(job_id: str):
         return
 
     job.status = "running"
+    from datetime import datetime, timezone
+    job.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
     try:
@@ -98,6 +100,8 @@ def generate_presentation_task(job_id: str):
         return
 
     job.status = "running"
+    from datetime import datetime, timezone
+    job.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
     try:
@@ -174,6 +178,8 @@ def generate_package_document_task(job_id: str):
         return
 
     job.status = "running"
+    from datetime import datetime, timezone
+    job.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
     try:

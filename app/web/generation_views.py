@@ -341,3 +341,13 @@ def index():
         "generate/index.html", syllabi=syllabi, jobs=jobs,
         job_syllabus_titles=job_syllabus_titles, job_reviews=job_reviews, packages=package_data,
     )
+
+
+@generation_web_bp.route("/package-job-row/<job_id>")
+@login_required
+def package_job_row(job_id):
+    job = GenerationJob.query.filter_by(id=job_id, organization_id=current_user.organization_id).first_or_404()
+    package = job.package
+    review = MaterialReview.query.filter_by(package_id=package.id).first() if package else None
+    can_download = not review or review.status == "approved"
+    return render_template("generate/_package_job_row.html", job=job, can_download=can_download)
