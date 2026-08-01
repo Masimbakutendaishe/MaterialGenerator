@@ -68,6 +68,28 @@ def generate_textbook_task(job_id: str):
         job.error_message = str(exc)
         db.session.commit()
 
+@celery_app.task(name="recover_stuck_jobs")
+def recover_stuck_jobs():
+    """Finds jobs stuck in 'queued' for more than 5 minutes with no sign of progress,
+    and re-dispatches them. Safety net for tasks lost during worker restarts/deploys,
+    even with task_acks_late — covers edge cases like broker-level message loss."""
+    from datetime import datetime, timezone, timedelta
+    from app.models.generation_job import GenerationJob
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=5)
+    stuck_jobs = GenerationJob.query.filter(
+        GenerationJob.status == "queued",
+        GenerationJob.created_at < cutoff,
+    ).all()
+
+    for job in stuck_jobs:
+        print(f"[RECOVERY] Re-dispatching stuck job {job.id} ({job.document_subtype})")
+        async_result = generate_package_document_task.delay(job.id)
+        job.task_id = async_result.id
+        db.session.commit()
+
+    if stuck_jobs:
+        print(f"[RECOVERY] Re-dispatched {len(stuck_jobs)} stuck job(s)")
 
 @celery_app.task(name="generate_presentation_task")
 def generate_presentation_task(job_id: str):

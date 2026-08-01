@@ -17,3 +17,15 @@ jwt = JWTManager()
 login_manager = LoginManager()
 limiter = Limiter(key_func=get_remote_address)
 celery_app = Celery(__name__)
+celery_app.conf.update(
+    task_acks_late=True,
+    worker_prefetch_multiplier=1,
+    broker_connection_retry_on_startup=True,
+    task_reject_on_worker_lost=True,
+    beat_schedule={
+        "recover-stuck-jobs": {
+            "task": "recover_stuck_jobs",
+            "schedule": 180.0,
+        },
+    },
+)
