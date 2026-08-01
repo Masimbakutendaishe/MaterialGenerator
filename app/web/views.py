@@ -281,6 +281,8 @@ def debug_latest_job():
 @web_bp.route("/debug-latest-job/<subtype>")
 @login_required
 def debug_latest_job_by_type(subtype):
+    if current_user.role != "superadmin":
+        return {"error": "forbidden"}, 403
     from app.models.generation_job import GenerationJob
     job = GenerationJob.query.filter_by(document_subtype=subtype).order_by(GenerationJob.created_at.desc()).first()
     if not job:
@@ -292,12 +294,3 @@ def debug_latest_job_by_type(subtype):
         "document_subtype": job.document_subtype,
     }
 
-@web_bp.route("/debug-migrate")
-@login_required
-def debug_migrate():
-    import subprocess
-    result = subprocess.run(
-        ["flask", "--app", "wsgi", "db", "upgrade"],
-        capture_output=True, text=True, cwd="/app"
-    )
-    return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
