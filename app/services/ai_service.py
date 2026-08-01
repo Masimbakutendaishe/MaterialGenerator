@@ -46,12 +46,17 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 
 Produce 4 to 8 units, each with 2 to 5 learning outcomes, appropriate for a work-related skills programme."""
 
-    raw_text = _call_model("syllabus_generation", prompt, max_tokens=2000)
-
-    try:
-        return json.loads(raw_text)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+    for attempt in range(2):
+        raw_text = _call_model("syllabus_generation", prompt, max_tokens=4000)
+        try:
+            return json.loads(raw_text)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_text))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
 
 
 def structure_syllabus_from_text(raw_text: str, seta: str = None, nqf_level: str = None) -> dict:
