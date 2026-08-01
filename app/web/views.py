@@ -291,3 +291,13 @@ def debug_latest_job_by_type(subtype):
         "error_message": job.error_message,
         "document_subtype": job.document_subtype,
     }
+
+@web_bp.route("/debug-migrate")
+@login_required
+def debug_migrate():
+    import subprocess
+    result = subprocess.run(
+        ["flask", "--app", "wsgi", "db", "upgrade"],
+        capture_output=True, text=True, cwd="/app"
+    )
+    return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
