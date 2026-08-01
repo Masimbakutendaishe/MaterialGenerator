@@ -457,12 +457,17 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 "blank_lines" for short_answer/scenario suggests how many ruled lines to leave for the answer.
 For multiple_choice, omit "blank_lines"."""
 
-    raw_response = _call_model("textbook_writing", prompt, max_tokens=3000, job_id=job_id)
-
-    try:
-        return json.loads(raw_response)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=4500, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
 
 DOCUMENT_PROMPT_FRAMING = {
     "learner_manual": "a Learner Manual — the core training content the learner studies to gain the knowledge and skills required by the unit standard",
