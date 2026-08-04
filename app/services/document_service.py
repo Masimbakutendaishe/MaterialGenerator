@@ -117,6 +117,46 @@ def _render_content_block(doc, block, primary_hex, secondary, accent_hex=None):
                 var_run.font.size = Pt(10)
         doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
+    elif block_type == "example_tip":
+        # Derive light tint shades from the org's actual brand colors instead of hardcoded hex —
+        # a very light version of primary for the example side, accent for the tip side
+        def _lighten(hex_color, factor=0.88):
+            hex_color = hex_color.lstrip("#")
+            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+            r = int(r + (255 - r) * factor)
+            g = int(g + (255 - g) * factor)
+            b = int(b + (255 - b) * factor)
+            return f"{r:02X}{g:02X}{b:02X}"
+
+        example_shade = _lighten(primary_hex)
+        tip_shade = _lighten(accent_hex or "F39C12")
+
+        table = doc.add_table(rows=1, cols=2)
+        table.autofit = True
+        left_cell, right_cell = table.rows[0].cells
+
+        left_para = left_cell.paragraphs[0]
+        _shade_paragraph(left_para, example_shade)
+        left_label = left_para.add_run("Practical Example\n")
+        left_label.bold = True
+        left_label.font.size = Pt(10)
+        left_label.font.color.rgb = secondary
+        left_body = left_para.add_run(block.get("example", ""))
+        left_body.font.size = Pt(10)
+        left_body.italic = True
+
+        right_para = right_cell.paragraphs[0]
+        _shade_paragraph(right_para, tip_shade)
+        right_label = right_para.add_run("Helpful Tip\n")
+        right_label.bold = True
+        right_label.font.size = Pt(10)
+        right_label.font.color.rgb = secondary
+        right_body = right_para.add_run(block.get("tip", ""))
+        right_body.font.size = Pt(10)
+        right_body.italic = True
+
+        doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
     elif block_type == "info_box":
         box_para = doc.add_paragraph()
         box_para.paragraph_format.space_before = Pt(6)
