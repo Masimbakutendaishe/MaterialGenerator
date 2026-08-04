@@ -22,6 +22,7 @@ class Syllabus(db.Model):
     accreditation_info = db.Column(db.JSON, nullable=True)  # e.g. {"seta": "MERSETA", "qualification_id": "..."}
 
     status = db.Column(db.String(50), nullable=False, default="draft")  # "draft" | "finalized"
+    syllabus_type = db.Column(db.String(50), nullable=False, default="standard")  # "standard" | "qcto"
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
