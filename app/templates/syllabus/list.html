@@ -29,7 +29,14 @@
                 <td class="px-6 py-3 text-steel-500 capitalize">{{ s.source.replace('_', ' ') }}</td>
                 <td class="px-6 py-3 text-steel-500">{{ s.created_at.strftime('%Y-%m-%d') }}</td>
                 <td class="px-6 py-3 text-right">
-                    {% if s.syllabus_type == 'qcto' %}
+                    {% if s.status == 'processing' %}
+                    <span class="inline-flex items-center gap-1.5 text-xs font-medium text-signal">
+                        <span class="inline-block w-3 h-3 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
+                        Processing
+                    </span>
+                    {% elif s.status == 'failed' %}
+                    <span class="text-red-600 text-xs font-medium">Failed</span>
+                    {% elif s.syllabus_type == 'qcto' %}
                     <span class="text-signal text-xs font-medium">{{ s.content.get('modules', [])|length }} modules</span>
                     {% else %}
                     <span class="text-signal text-xs font-medium">{{ s.content.get('units', [])|length }} units</span>

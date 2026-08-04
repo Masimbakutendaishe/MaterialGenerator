@@ -13,6 +13,17 @@
     </p>
 </div>
 
+{% if syllabus.status == 'processing' %}
+<div class="bg-blue-50 border-l-4 border-signal text-navy-950 px-4 py-3 rounded mb-6 text-sm flex items-center gap-2">
+    <span class="inline-block w-4 h-4 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
+    This curriculum is still processing — you'll be notified once it's ready.
+</div>
+{% elif syllabus.status == 'failed' %}
+<div class="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6 text-sm">
+    Processing failed: {{ syllabus.content.get('error', 'Unknown error') if syllabus.content else 'Unknown error' }}
+</div>
+{% endif %}
+
 <div class="flex justify-end mb-4">
     <a href="{{ url_for('generation_web.index') }}" class="bg-navy-950 text-white px-5 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">
         Generate Material

@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.syllabus import Syllabus
 from app.services.syllabus_service import extract_text_from_upload
-from app.services.ai_service import structure_syllabus_from_text, generate_syllabus, structure_qcto_syllabus_from_text, extract_qcto_module_topics, extract_qcto_pm_details, extract_qcto_wm_details
+from app.services.ai_service import structure_syllabus_from_text, generate_syllabus
 
 syllabus_web_bp = Blueprint("syllabus_web", __name__, url_prefix="/syllabus")
 
@@ -72,6 +72,7 @@ def create_upload():
     title = request.form.get("title") or file_storage.filename
     seta = request.form.get("seta")
     nqf_level = request.form.get("nqf_level")
+    syllabus_type = request.form.get("syllabus_type", "standard")
 
     try:
         raw_text = extract_text_from_upload(file_storage)
@@ -83,33 +84,32 @@ def create_upload():
         flash("No readable text found in the uploaded file.")
         return redirect(url_for("syllabus_web.new"))
 
-    syllabus_type = request.form.get("syllabus_type", "standard")
+    if syllabus_type == "qcto":
+        # QCTO extraction can take a while (many sequential AI calls) — create the
+        # syllabus immediately as "processing" and hand off to the background worker.
+        from app.tasks.syllabus_tasks import process_qcto_syllabus_task
 
+        syllabus = Syllabus(
+            organization_id=current_user.organization_id,
+            created_by_user_id=current_user.id,
+            title=title,
+            source="uploaded",
+            content={},
+            syllabus_type="qcto",
+            status="processing",
+            accreditation_info={"seta": seta, "nqf_level": nqf_level},
+        )
+        db.session.add(syllabus)
+        db.session.commit()
+
+        process_qcto_syllabus_task.delay(syllabus.id, raw_text)
+
+        flash("Your QCTO curriculum is being processed in the background — you'll be notified once it's ready.")
+        return redirect(url_for("syllabus_web.list_syllabi"))
+
+    # Standard uploads are fast enough to stay synchronous
     try:
-        if syllabus_type == "qcto":
-            content = structure_qcto_syllabus_from_text(raw_text)
-            # Second pass: backfill any module whose first-pass extraction came back empty
-            # (common on long documents where the first pass truncates before reaching detail)
-            for module in content.get("modules", []):
-                if module.get("module_type") == "KM" and not module.get("topics"):
-                    module["topics"] = extract_qcto_module_topics(
-                        module.get("module_code", ""), module.get("title", ""), raw_text
-                    )
-                elif module.get("module_type") == "PM" and not module.get("performance_assessment"):
-                    pm_detail = extract_qcto_pm_details(
-                        module.get("module_code", ""), module.get("title", ""), raw_text
-                    )
-                    module["performance_assessment"] = pm_detail.get("performance_assessment", [])
-                    module["applied_knowledge"] = pm_detail.get("applied_knowledge", [])
-                    module["assessment_criteria"] = pm_detail.get("assessment_criteria", [])
-                elif module.get("module_type") == "WM" and not module.get("work_experience_elements"):
-                    wm_detail = extract_qcto_wm_details(
-                        module.get("module_code", ""), module.get("title", ""), raw_text
-                    )
-                    module["purpose"] = wm_detail.get("purpose") or module.get("purpose", "")
-                    module["work_experience_elements"] = wm_detail.get("work_experience_elements", [])
-        else:
-            content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
+        content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
     except RuntimeError as exc:
         flash(f"AI structuring failed: {exc}")
         return redirect(url_for("syllabus_web.new"))
@@ -120,19 +120,14 @@ def create_upload():
         title=title,
         source="uploaded",
         content=content,
-        syllabus_type=syllabus_type,
-        accreditation_info={
-            "seta": seta,
-            "nqf_level": nqf_level,
-            "qualification_code": content.get("qualification_code") if syllabus_type == "qcto" else None,
-            "qualification_title": content.get("qualification_title") if syllabus_type == "qcto" else None,
-        },
+        syllabus_type="standard",
+        accreditation_info={"seta": seta, "nqf_level": nqf_level},
     )
     db.session.add(syllabus)
     db.session.commit()
 
-    flash(f"Syllabus '{title}' created from upload.")
-    return redirect(url_for("syllabus_web.list_syllabi"))
+    flash(f"Syllabus '{title}' created successfully.")
+    return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus.id))
 
 
 @syllabus_web_bp.route("/create-ai", methods=["POST"])
@@ -146,24 +141,22 @@ def create_ai():
         flash("Please enter a course title/topic.")
         return redirect(url_for("syllabus_web.new"))
 
-    try:
-        content = generate_syllabus(topic, seta=seta, nqf_level=nqf_level)
-    except RuntimeError as exc:
-        flash(f"AI generation failed: {exc}")
-        return redirect(url_for("syllabus_web.new"))
+    from app.tasks.syllabus_tasks import process_ai_generate_syllabus_task
 
     syllabus = Syllabus(
         organization_id=current_user.organization_id,
         created_by_user_id=current_user.id,
         title=topic,
         source="ai_generated",
-        content=content,
+        content={},
+        status="processing",
         accreditation_info={"seta": seta, "nqf_level": nqf_level},
     )
     db.session.add(syllabus)
     db.session.commit()
 
-    flash(f"Syllabus '{topic}' generated.")
+    process_ai_generate_syllabus_task.delay(syllabus.id, topic, seta, nqf_level)
+    flash(f"'{topic}' is being generated in the background — you'll be notified once it's ready.")
     return redirect(url_for("syllabus_web.list_syllabi"))
 
 

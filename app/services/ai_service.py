@@ -864,13 +864,24 @@ specific module isn't stated near it, infer from context or use the qualificatio
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
+def _extract_relevant_window(raw_text: str, module_code: str, window_size: int = 30000) -> str:
+    """Finds the LAST occurrence of a module's code in the document — curriculum documents
+    typically list every module in a brief summary near the start, then cover each one in
+    full detail later. The last occurrence is far more likely to be the actual detailed
+    section than the first (which is usually just the summary mention)."""
+    idx = raw_text.rfind(module_code)
+    if idx == -1:
+        return raw_text[:window_size]
+    start = max(0, idx - 2000)
+    end = min(len(raw_text), idx + window_size)
+    return raw_text[start:end]
 
 def extract_qcto_module_topics(module_code: str, module_title: str, raw_text: str) -> list:
     """Extracts detailed topics/elements/assessment criteria for ONE specific module from
     the full curriculum text — used as a second pass after structure_qcto_syllabus_from_text
     identifies the module list, avoiding truncation issues on large documents by focusing
     each call on just one module's relevant section."""
-    truncated_text = raw_text[:60000]  # still capped, but each call only needs to find ONE module's section
+    truncated_text = _extract_relevant_window(raw_text, module_code)  # still capped, but each call only needs to find ONE module's section
 
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this module, and extract its detailed topic breakdown.
@@ -914,7 +925,7 @@ def extract_qcto_pm_details(module_code: str, module_title: str, raw_text: str) 
     """Extracts detailed performance assessment, applied knowledge, and assessment criteria
     for ONE specific Practical Skill Module (PM) — second-pass extraction, same pattern as
     extract_qcto_module_topics, to avoid truncation on large documents."""
-    truncated_text = raw_text[:60000]
+    truncated_text = _extract_relevant_window(raw_text, module_code)
 
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this Practical Skill Module, and extract its detail.
@@ -950,7 +961,7 @@ Do not invent content that isn't genuinely present in the text."""
 def extract_qcto_wm_details(module_code: str, module_title: str, raw_text: str) -> dict:
     """Extracts detailed work experience elements for ONE specific Work Experience Module
     (WM) — second-pass extraction, same pattern as extract_qcto_module_topics."""
-    truncated_text = raw_text[:60000]
+    truncated_text = _extract_relevant_window(raw_text, module_code)
 
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this Work Experience Module, and extract its detail.
