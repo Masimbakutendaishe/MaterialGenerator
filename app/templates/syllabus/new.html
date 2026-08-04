@@ -87,6 +87,13 @@
                 <input type="text" name="nqf_level" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
             </div>
         </div>
+        <div>
+            <label class="flex items-center gap-2 text-sm text-steel-600">
+                <input type="checkbox" name="is_qcto" value="1" onchange="document.getElementById('syllabus_type_field').value = this.checked ? 'qcto' : 'standard'" class="rounded border-steel-300">
+                This is a QCTO curriculum document (has Knowledge/Practical/Work Experience Modules)
+            </label>
+            <input type="hidden" id="syllabus_type_field" name="syllabus_type" value="standard">
+        </div>
         <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Upload & Structure</button>
         <p class="text-steel-400 text-xs">The AI will extract and restructure the content — may take a few seconds.</p>
     </form>

@@ -29,7 +29,11 @@
                 <td class="px-6 py-3 text-steel-500 capitalize">{{ s.source.replace('_', ' ') }}</td>
                 <td class="px-6 py-3 text-steel-500">{{ s.created_at.strftime('%Y-%m-%d') }}</td>
                 <td class="px-6 py-3 text-right">
+                    {% if s.syllabus_type == 'qcto' %}
+                    <span class="text-signal text-xs font-medium">{{ s.content.get('modules', [])|length }} modules</span>
+                    {% else %}
                     <span class="text-signal text-xs font-medium">{{ s.content.get('units', [])|length }} units</span>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

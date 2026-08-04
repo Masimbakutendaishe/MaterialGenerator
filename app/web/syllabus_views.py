@@ -4,7 +4,7 @@ from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.syllabus import Syllabus
 from app.services.syllabus_service import extract_text_from_upload
-from app.services.ai_service import structure_syllabus_from_text, generate_syllabus
+from app.services.ai_service import structure_syllabus_from_text, generate_syllabus, structure_qcto_syllabus_from_text, extract_qcto_module_topics, extract_qcto_pm_details, extract_qcto_wm_details
 
 syllabus_web_bp = Blueprint("syllabus_web", __name__, url_prefix="/syllabus")
 
@@ -83,8 +83,33 @@ def create_upload():
         flash("No readable text found in the uploaded file.")
         return redirect(url_for("syllabus_web.new"))
 
+    syllabus_type = request.form.get("syllabus_type", "standard")
+
     try:
-        content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
+        if syllabus_type == "qcto":
+            content = structure_qcto_syllabus_from_text(raw_text)
+            # Second pass: backfill any module whose first-pass extraction came back empty
+            # (common on long documents where the first pass truncates before reaching detail)
+            for module in content.get("modules", []):
+                if module.get("module_type") == "KM" and not module.get("topics"):
+                    module["topics"] = extract_qcto_module_topics(
+                        module.get("module_code", ""), module.get("title", ""), raw_text
+                    )
+                elif module.get("module_type") == "PM" and not module.get("performance_assessment"):
+                    pm_detail = extract_qcto_pm_details(
+                        module.get("module_code", ""), module.get("title", ""), raw_text
+                    )
+                    module["performance_assessment"] = pm_detail.get("performance_assessment", [])
+                    module["applied_knowledge"] = pm_detail.get("applied_knowledge", [])
+                    module["assessment_criteria"] = pm_detail.get("assessment_criteria", [])
+                elif module.get("module_type") == "WM" and not module.get("work_experience_elements"):
+                    wm_detail = extract_qcto_wm_details(
+                        module.get("module_code", ""), module.get("title", ""), raw_text
+                    )
+                    module["purpose"] = wm_detail.get("purpose") or module.get("purpose", "")
+                    module["work_experience_elements"] = wm_detail.get("work_experience_elements", [])
+        else:
+            content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
     except RuntimeError as exc:
         flash(f"AI structuring failed: {exc}")
         return redirect(url_for("syllabus_web.new"))
@@ -95,7 +120,13 @@ def create_upload():
         title=title,
         source="uploaded",
         content=content,
-        accreditation_info={"seta": seta, "nqf_level": nqf_level},
+        syllabus_type=syllabus_type,
+        accreditation_info={
+            "seta": seta,
+            "nqf_level": nqf_level,
+            "qualification_code": content.get("qualification_code") if syllabus_type == "qcto" else None,
+            "qualification_title": content.get("qualification_title") if syllabus_type == "qcto" else None,
+        },
     )
     db.session.add(syllabus)
     db.session.commit()

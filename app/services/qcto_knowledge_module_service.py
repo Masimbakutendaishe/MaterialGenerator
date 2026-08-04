@@ -123,3 +123,20 @@ def build_qcto_knowledge_module_docx(title: str, syllabus_content: dict, organiz
     doc.save(buffer)
     buffer.seek(0)
     return buffer
+
+
+def build_qcto_knowledge_module_docx_adapter(title, units, organization_name=None, seta=None,
+                                              nqf_level=None, logo_bytes=None, brand_colors=None,
+                                              job_id=None, **kwargs):
+    """Adapter matching the standard DOCUMENT_BUILDERS call signature (title, units, ...)
+    used by generate_package_document_task, translating it to this builder's actual
+    signature (syllabus_content instead of units, no seta/nqf_level)."""
+    syllabus_content = {"modules": units} if isinstance(units, list) else (units or {"modules": []})
+    return build_qcto_knowledge_module_docx(
+        title=title,
+        syllabus_content=syllabus_content,
+        organization_name=organization_name,
+        logo_bytes=logo_bytes,
+        brand_colors=brand_colors,
+        job_id=job_id,
+    )

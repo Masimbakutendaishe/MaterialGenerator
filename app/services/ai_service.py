@@ -790,3 +790,193 @@ or formula blocks only where genuinely relevant to that specific topic."""
                 if attempt == 1:
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
+
+def structure_qcto_syllabus_from_text(raw_text: str) -> dict:
+    """Parses raw text extracted from an uploaded QCTO curriculum document into the
+    structured modules format (KM/PM/WM with codes, credits, topics, elements, IACs)."""
+    truncated_text = raw_text[:40000]
+
+    prompt = f"""You are an instructional designer. Below is raw text extracted from an uploaded
+South African QCTO curriculum document. Extract and structure its Knowledge Modules (KM),
+Practical Skill Modules (PM), and Work Experience Modules (WM).
+
+Raw extracted text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "qualification_code": "<the qualification code, e.g. 718302-000-00>",
+  "qualification_title": "<the full qualification title>",
+  "modules": [
+    {{
+      "module_type": "KM",
+      "module_code": "<full module code>",
+      "title": "<module title>",
+      "nqf_level": "<NQF level>",
+      "credits": <credits as a number>,
+      "topics": [
+        {{
+          "topic_code": "<topic code, e.g. KM-01-KT02>",
+          "title": "<topic title>",
+          "weight": "<weight percentage if given, else null>",
+          "elements": ["<topic element 1>", "<topic element 2>"],
+          "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
+        }}
+      ]
+    }},
+    {{
+      "module_type": "PM",
+      "module_code": "<full module code>",
+      "title": "<module title>",
+      "nqf_level": "<NQF level>",
+      "credits": <credits as a number>,
+      "performance_assessment": ["<PA element 1>", "<PA element 2>"],
+      "applied_knowledge": ["<AK element 1>", "<AK element 2>"],
+      "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
+    }},
+    {{
+      "module_type": "WM",
+      "module_code": "<full module code>",
+      "title": "<module title>",
+      "nqf_level": "<NQF level>",
+      "credits": <credits as a number>,
+      "purpose": "<purpose statement>",
+      "work_experience_elements": ["<WE element 1>", "<WE element 2>"]
+    }}
+  ]
+}}
+
+Extract EVERY module and topic/element you can find in the text — do not skip any. Preserve
+the original codes, titles, and wording as closely as possible. If credits/NQF level for a
+specific module isn't stated near it, infer from context or use the qualification-level value."""
+
+    for attempt in range(2):
+        raw_response = _call_model("syllabus_structuring", prompt, max_tokens=16000)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
+
+
+def extract_qcto_module_topics(module_code: str, module_title: str, raw_text: str) -> list:
+    """Extracts detailed topics/elements/assessment criteria for ONE specific module from
+    the full curriculum text — used as a second pass after structure_qcto_syllabus_from_text
+    identifies the module list, avoiding truncation issues on large documents by focusing
+    each call on just one module's relevant section."""
+    truncated_text = raw_text[:60000]  # still capped, but each call only needs to find ONE module's section
+
+    prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
+section specifically covering this module, and extract its detailed topic breakdown.
+
+Module Code: {module_code}
+Module Title: {module_title}
+
+Full curriculum text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "topics": [
+    {{
+      "topic_code": "<topic code, e.g. KM-01-KT02>",
+      "title": "<topic title>",
+      "weight": "<weight percentage if given, else null>",
+      "elements": ["<topic element 1>", "<topic element 2>"],
+      "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
+    }}
+  ]
+}}
+
+If you cannot find this module's detailed topic breakdown in the text, return {{"topics": []}}.
+Do not invent topics that aren't genuinely present in the text."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
+    try:
+        result = json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            result = json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return []
+    return result.get("topics", [])
+
+
+def extract_qcto_pm_details(module_code: str, module_title: str, raw_text: str) -> dict:
+    """Extracts detailed performance assessment, applied knowledge, and assessment criteria
+    for ONE specific Practical Skill Module (PM) — second-pass extraction, same pattern as
+    extract_qcto_module_topics, to avoid truncation on large documents."""
+    truncated_text = raw_text[:60000]
+
+    prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
+section specifically covering this Practical Skill Module, and extract its detail.
+
+Module Code: {module_code}
+Module Title: {module_title}
+
+Full curriculum text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "performance_assessment": ["<PA element 1>", "<PA element 2>"],
+  "applied_knowledge": ["<AK element 1>", "<AK element 2>"],
+  "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
+}}
+
+If you cannot find this module's detail in the text, return empty arrays for each field.
+Do not invent content that isn't genuinely present in the text."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            return json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return {"performance_assessment": [], "applied_knowledge": [], "assessment_criteria": []}
+
+
+def extract_qcto_wm_details(module_code: str, module_title: str, raw_text: str) -> dict:
+    """Extracts detailed work experience elements for ONE specific Work Experience Module
+    (WM) — second-pass extraction, same pattern as extract_qcto_module_topics."""
+    truncated_text = raw_text[:60000]
+
+    prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
+section specifically covering this Work Experience Module, and extract its detail.
+
+Module Code: {module_code}
+Module Title: {module_title}
+
+Full curriculum text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "purpose": "<purpose statement for this module>",
+  "work_experience_elements": ["<WE element 1>", "<WE element 2>"]
+}}
+
+If you cannot find this module's detail in the text, return an empty string for purpose and
+an empty array for work_experience_elements. Do not invent content that isn't genuinely present."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
+    try:
+        return json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            return json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return {"purpose": "", "work_experience_elements": []}

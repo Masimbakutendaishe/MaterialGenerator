@@ -14,6 +14,7 @@ from app.services.summative_assessment_service import build_summative_assessment
 from app.services.alignment_matrix_service import build_alignment_matrix_docx
 from app.services.poe_guide_service import build_poe_guide_docx
 from functools import partial as _partial  # already imported as partial, reuse existing import
+from app.services.qcto_knowledge_module_service import build_qcto_knowledge_module_docx_adapter
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -151,6 +152,7 @@ from app.models.material_package import MaterialPackage
 
 # Maps a document_subtype to (builder_function, file_extension, content_type)
 DOCUMENT_BUILDERS = {
+    "qcto_knowledge_modules": (build_qcto_knowledge_module_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "textbook": (build_textbook_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "presentation": (build_presentation_pptx, "pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
     "assessment": (build_assessment_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),

@@ -20,20 +20,71 @@
 </div>
 
 <div class="space-y-4">
-    {% for unit in syllabus.content.get('units', []) %}
-    <div class="bg-white rounded-lg border border-steel-200 p-6">
-        <h2 class="text-base font-semibold text-navy-950 mb-3">{{ unit.get('name', 'Unnamed Unit') }}</h2>
-        <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Learning Outcomes</p>
-        <ul class="list-disc list-inside space-y-1">
-            {% for outcome in unit.get('outcomes', []) %}
-            <li class="text-steel-600 text-sm">{{ outcome }}</li>
-            {% endfor %}
-        </ul>
-    </div>
+    {% if syllabus.syllabus_type == 'qcto' %}
+        {% if syllabus.accreditation_info and syllabus.accreditation_info.get('qualification_code') %}
+        <div class="bg-white rounded-lg border border-steel-200 p-4 text-sm text-steel-600">
+            <span class="font-medium text-navy-950">{{ syllabus.accreditation_info.get('qualification_title', '') }}</span>
+            — {{ syllabus.accreditation_info.get('qualification_code', '') }}
+        </div>
+        {% endif %}
+        {% for module_type, module_label in [('KM', 'Knowledge Modules'), ('PM', 'Practical Skill Modules'), ('WM', 'Work Experience Modules')] %}
+        {% set modules_of_type = syllabus.content.get('modules', []) | selectattr('module_type', 'equalto', module_type) | list %}
+        {% if modules_of_type %}
+        <h3 class="text-xs font-semibold text-steel-500 uppercase tracking-wide pt-2">{{ module_label }}</h3>
+        {% for module in modules_of_type %}
+        <div class="bg-white rounded-lg border border-steel-200 p-6">
+            <div class="flex justify-between items-start mb-3">
+                <h2 class="text-base font-semibold text-navy-950">{{ module.get('title', 'Unnamed Module') }}</h2>
+                <span class="text-xs text-steel-400">{{ module.get('module_code', '') }} · NQF {{ module.get('nqf_level', '') }} · {{ module.get('credits', '') }} Credits</span>
+            </div>
+            {% if module_type == 'KM' %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Topics ({{ module.get('topics', [])|length }})</p>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for topic in module.get('topics', []) %}
+                    <li class="text-steel-600 text-sm">{{ topic.get('topic_code', '') }} — {{ topic.get('title', '') }}</li>
+                    {% else %}
+                    <li class="text-steel-400 text-sm">No topics extracted yet.</li>
+                    {% endfor %}
+                </ul>
+            {% elif module_type == 'PM' %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Performance Assessment</p>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for pa in module.get('performance_assessment', []) %}
+                    <li class="text-steel-600 text-sm">{{ pa }}</li>
+                    {% else %}
+                    <li class="text-steel-400 text-sm">None extracted yet.</li>
+                    {% endfor %}
+                </ul>
+            {% elif module_type == 'WM' %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">{{ module.get('purpose', '') }}</p>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for we in module.get('work_experience_elements', []) %}
+                    <li class="text-steel-600 text-sm">{{ we }}</li>
+                    {% else %}
+                    <li class="text-steel-400 text-sm">None extracted yet.</li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
     {% else %}
-    <div class="bg-white rounded-lg border border-steel-200 p-8 text-center">
-        <p class="text-steel-400 text-sm">No units found in this syllabus.</p>
-    </div>
-    {% endfor %}
+        {% for unit in syllabus.content.get('units', []) %}
+        <div class="bg-white rounded-lg border border-steel-200 p-6">
+            <h2 class="text-base font-semibold text-navy-950 mb-3">{{ unit.get('name', 'Unnamed Unit') }}</h2>
+            <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Learning Outcomes</p>
+            <ul class="list-disc list-inside space-y-1">
+                {% for outcome in unit.get('outcomes', []) %}
+                <li class="text-steel-600 text-sm">{{ outcome }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-lg border border-steel-200 p-8 text-center">
+            <p class="text-steel-400 text-sm">No units found in this syllabus.</p>
+        </div>
+        {% endfor %}
+    {% endif %}
 </div>
 {% endblock %}
