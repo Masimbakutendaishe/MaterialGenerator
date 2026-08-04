@@ -723,3 +723,70 @@ of study/practice hours for this one outcome."""
             return json.loads(_repair_json_string(raw_response))
         except json.JSONDecodeError:
             return {"assessment_type": "SQ", "notional_hours": 2}  # safe fallback, never breaks the document
+
+def generate_qcto_knowledge_module_content(module: dict, job_id: str = None) -> dict:
+    """Generates content for one Knowledge Module (KM) of a QCTO qualification, matching
+    the real structural pattern: module intro, sub-modules/units table, then detailed
+    content per Knowledge Topic with a practical example/tip callout."""
+    topics_text = "\n".join(
+        f"- {t.get('topic_code', '')}: {t.get('title', '')} (weight: {t.get('weight', 'n/a')})"
+        for t in module.get("topics", [])
+    )
+
+    prompt = f"""You are writing a Knowledge Module for a South African QCTO-accredited
+occupational qualification, in the style of real accredited training material — detailed,
+practical, and grounded in the actual subject matter (not generic filler).
+
+Module: {module.get('title', '')}
+Module Code: {module.get('module_code', '')}
+NQF Level: {module.get('nqf_level', '')}
+Credits: {module.get('credits', '')}
+
+This module covers these Knowledge Topics:
+{topics_text}
+
+Write:
+1. A short module introduction (2-3 sentences on why this module matters occupationally)
+2. A short module purpose statement (1-2 sentences)
+3. For EACH Knowledge Topic listed above, write genuinely detailed, specific content — real
+   depth, not a shallow gloss. Include a "example_tip" block for each topic: a realistic
+   workplace example paired with a practical, actionable tip.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "module_intro": "<2-3 sentence introduction>",
+  "module_purpose": "<1-2 sentence purpose statement>",
+  "topics": [
+    {{
+      "topic_code": "<matching topic code from the list above>",
+      "topic_title": "<matching topic title>",
+      "blocks": [
+        {{"type": "paragraph", "text": "Detailed explanatory text, 150-300 words with real depth — definitions, mechanisms, step-by-step detail, common mistakes."}},
+        {{"type": "paragraph", "text": "A second paragraph continuing the explanation with more depth, or covering a distinct sub-aspect of this topic."}},
+        {{"type": "list", "items": ["<key point 1>", "<key point 2>", "<key point 3>", "<key point 4>"], "ordered": false}},
+        {{"type": "diagram", "steps": ["<step 1>", "<step 2>", "<step 3>"], "caption": "What this diagram shows"}},
+        {{"type": "image", "search_term": "SPECIFIC concrete search phrase for a real relevant photo", "caption": "What this image shows"}},
+        {{"type": "example_tip", "example": "A detailed, realistic workplace example illustrating this topic.", "tip": "A practical, actionable tip related to this topic."}}
+      ]
+    }}
+  ]
+}}
+
+NEVER invent specific standard numbers, unit standard IDs, or regulatory citations you are not
+confident are real. Every topic MUST include AT LEAST TWO paragraph blocks with real depth (not
+a shallow gloss — write like a genuine textbook chapter section) and exactly one example_tip
+block. Include a diagram block where the topic involves a process/sequence, and an image block
+where a real photo would meaningfully illustrate a concrete object/tool/environment. Use table
+or formula blocks only where genuinely relevant to that specific topic."""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=8000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
