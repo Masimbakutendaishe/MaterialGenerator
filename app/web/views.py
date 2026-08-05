@@ -323,3 +323,13 @@ def debug_qcto_job():
         "registered_qcto_builders": qcto_registered,
         "pm_modules_summary": pm_summary,
     }
+
+
+@web_bp.route("/debug-flush-redis")
+@login_required
+def debug_flush_redis():
+    if current_user.role != "superadmin":
+        return {"error": "forbidden"}, 403
+    from app.extensions import celery_app
+    celery_app.control.purge()
+    return {"status": "Redis task queue purged"}
