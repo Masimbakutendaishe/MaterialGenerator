@@ -22,6 +22,15 @@ PACKAGE_DOCUMENTS = {
         "poe_guide",
         "moderator_guide",
     ],
+    "qcto_full_set": [
+        "qcto_knowledge_modules",
+        "qcto_practical_modules",
+        "qcto_workplace_modules",
+        "qcto_workplace_logbook",
+        "qcto_video_guide",
+        "qcto_km_assessment",
+        "qcto_pm_assessment",
+    ],
 }
 
 

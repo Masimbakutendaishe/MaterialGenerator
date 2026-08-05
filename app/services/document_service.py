@@ -536,6 +536,34 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
 
     doc.add_page_break()
 
+def _add_hyperlink(paragraph, url, text, color_hex="0563C1"):
+    """Adds a real, clickable hyperlink to a paragraph — python-docx has no built-in
+    hyperlink support, so this constructs the underlying XML relationship directly."""
+    part = paragraph.part
+    r_id = part.relate_to(url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True)
+
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+
+    new_run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), color_hex)
+    rPr.append(color)
+
+    underline = OxmlElement("w:u")
+    underline.set(qn("w:val"), "single")
+    rPr.append(underline)
+
+    new_run.append(rPr)
+    text_elem = OxmlElement("w:t")
+    text_elem.text = text
+    new_run.append(text_elem)
+    hyperlink.append(new_run)
+
+    paragraph._p.append(hyperlink)
+
 def _add_signature_block(doc: Document):
     """Adds Learner/Facilitator/Assessor-Moderator signature lines — appended to every
     learner-facing document."""

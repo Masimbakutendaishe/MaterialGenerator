@@ -1058,3 +1058,187 @@ Use table blocks only where genuinely relevant."""
                 if attempt == 1:
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
+
+
+def generate_qcto_workplace_module_content(module: dict, job_id: str = None) -> dict:
+    """Generates content for one Workplace/Work Experience Module (WM) of a QCTO
+    qualification, matching the real pattern: module intro/purpose, then per-unit 'Scope
+    of Work Experience' framing with nested Key Work Activities (concept, step-by-step
+    process, practical example), plus an example/tip box and exercise per unit."""
+    we_text = "\n".join(f"- {we}" for we in module.get("work_experience_elements", []))
+
+    prompt = f"""You are writing a Workplace Module for a South African QCTO-accredited
+occupational qualification, in the style of real accredited training material — detailed,
+grounded in genuine on-the-job activity.
+
+Module: {module.get('title', '')}
+Module Code: {module.get('module_code', '')}
+NQF Level: {module.get('nqf_level', '')}
+Credits: {module.get('credits', '')}
+Purpose: {module.get('purpose', '')}
+
+This module's Work Experience elements:
+{we_text}
+
+Write:
+1. A module introduction (2-3 sentences)
+2. A module purpose statement (1-2 sentences)
+3. Group the Work Experience elements into 2-3 logical "units". For EACH unit, write:
+   - A "Scope of Work Experience" framing statement (1-2 sentences)
+   - 2-3 "Key Work Activities" — each with a concept explanation, a step-by-step process
+     (numbered), and a practical example grounded in a realistic workplace scenario
+   - One example_tip block
+   - One exercise block (scenario + task + 1-2 reflection questions)
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "module_intro": "<2-3 sentences>",
+  "module_purpose": "<1-2 sentences>",
+  "units": [
+    {{
+      "unit_title": "<short unit title>",
+      "scope_statement": "<Scope of Work Experience framing>",
+      "activities": [
+        {{
+          "activity_code": "<e.g. WA0101>",
+          "activity_title": "<short activity title>",
+          "concept_explanation": ["<concept point 1>", "<concept point 2>"],
+          "process_steps": ["<step 1>", "<step 2>", "<step 3>"],
+          "practical_example": "A detailed, realistic workplace example illustrating this activity."
+        }}
+      ],
+      "example_tip": {{"example": "A realistic workplace example.", "tip": "A practical, actionable tip."}},
+      "exercise": {{"scenario": "A realistic workplace scenario.", "task": "What the learner must do.", "questions": ["<question 1>", "<question 2>"]}}
+    }}
+  ]
+}}
+
+NEVER invent specific standard numbers or regulatory citations you are not confident are real.
+Every unit needs at least 2 activities, one example_tip, and one exercise."""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=8000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
+
+def generate_qcto_video_guide_content(module: dict, job_id: str = None) -> dict:
+    """Generates a video resource guide entry for one QCTO module — for each topic/unit,
+    a description and a genuine YouTube search query (not a fabricated direct link, since
+    we can't know real video URLs — a search link is honest and still useful)."""
+    items_text = ""
+    if module.get("module_type") == "KM":
+        items_text = "\n".join(f"- {t.get('title', '')}" for t in module.get("topics", []))
+    elif module.get("module_type") == "PM":
+        items_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", [])[:6])
+    elif module.get("module_type") == "WM":
+        items_text = "\n".join(f"- {we}" for we in module.get("work_experience_elements", [])[:6])
+
+    prompt = f"""You are curating a video training resource guide for a South African QCTO-accredited
+occupational qualification.
+
+Module: {module.get('title', '')}
+Module Code: {module.get('module_code', '')}
+
+Topics/items covered in this module:
+{items_text}
+
+For EACH topic/item, suggest ONE genuinely relevant, specific YouTube search query (not a
+fabricated URL — a search query someone could type into YouTube to find real, relevant videos),
+a short description of what kind of video content would help (2-3 sentences), and 2-3 learning
+outcomes the learner should take away from watching such videos.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "entries": [
+    {{
+      "topic_name": "<matching topic/item name>",
+      "description": "2-3 sentences describing what kind of video content would help here.",
+      "search_query": "SPECIFIC YouTube search query, e.g. 'multihead weigher calibration tutorial'",
+      "learning_outcomes": ["<outcome 1>", "<outcome 2>", "<outcome 3>"]
+    }}
+  ]
+}}
+
+Make each search query specific and genuinely likely to surface real, relevant training videos —
+not generic. Do not invent a specific video title or channel name, only a search query."""
+
+    for attempt in range(2):
+        raw_response = _call_model("slide_content", prompt, max_tokens=3000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
+
+def generate_qcto_assessment_content(module: dict, job_id: str = None) -> dict:
+    """Generates an assessment for one KM or PM module, matching the real pattern: questions
+    organized into labeled sections, with blank answer space for written responses and
+    occasional short calculation-style questions for KM specifically."""
+    module_type = module.get("module_type", "KM")
+
+    if module_type == "KM":
+        items_text = "\n".join(f"- {t.get('title', '')}" for t in module.get("topics", []))
+        question_style = (
+            "Mix short-answer explanation questions with occasional calculation/practical "
+            "questions where genuinely relevant. Group questions into 2-3 labeled sections "
+            "(e.g. SECTION A, SECTION B), each covering a related cluster of topics."
+        )
+    else:  # PM
+        items_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", []))
+        question_style = (
+            "Write practical, scenario-grounded questions that ask the learner to explain or "
+            "describe how they would carry out a task, referencing realistic equipment/situations. "
+            "Group questions into 2-3 labeled sections covering related PA elements. Each question "
+            "needs generous blank answer space, since these require fuller written responses."
+        )
+
+    prompt = f"""You are writing an assessment for a South African QCTO-accredited occupational
+qualification, in the style of real accredited assessments.
+
+Module: {module.get('title', '')}
+Module Type: {module_type}
+Module Code: {module.get('module_code', '')}
+
+This module covers:
+{items_text}
+
+{question_style}
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "sections": [
+    {{
+      "section_label": "SECTION A: <short section theme>",
+      "questions": [
+        {{"question_text": "<question, may include a calculation if genuinely relevant>", "blank_lines": 3}}
+      ]
+    }}
+  ]
+}}
+
+Write 4-6 questions per section, 2-3 sections total. blank_lines should reflect how much space
+a genuine written answer would need (2-6 lines). Never invent specific standard numbers or
+regulatory citations you are not confident are real."""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=4000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
