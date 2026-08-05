@@ -305,10 +305,21 @@ def debug_qcto_job():
         return {"error": "no qcto job found"}, 404
     from app.tasks.generation_tasks import DOCUMENT_BUILDERS
     qcto_registered = [k for k in DOCUMENT_BUILDERS if 'qcto' in k]
+    from app.models.syllabus import Syllabus
+    syllabus = Syllabus.query.get(job.syllabus_id)
+    pm_summary = []
+    if syllabus and syllabus.content:
+        for m in syllabus.content.get("modules", []):
+            if m.get("module_type") == "PM":
+                pm_summary.append({
+                    "code": m.get("module_code"),
+                    "pa_count": len(m.get("performance_assessment", [])),
+                })
     return {
         "job_subtype": job.document_subtype,
         "job_status": job.status,
         "job_error": job.error_message,
         "job_result_file_path": job.result_file_path,
         "registered_qcto_builders": qcto_registered,
+        "pm_modules_summary": pm_summary,
     }
