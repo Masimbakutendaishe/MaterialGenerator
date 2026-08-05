@@ -1233,8 +1233,13 @@ regulatory citations you are not confident are real."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=4000, job_id=job_id)
+        import sys
+        print(f"[QCTO-DEBUG] assessment raw_response length: {len(raw_response) if raw_response else 0}", flush=True, file=sys.stderr)
+        print(f"[QCTO-DEBUG] assessment raw_response preview: {raw_response[:200] if raw_response else 'EMPTY'}", flush=True, file=sys.stderr)
         try:
-            return json.loads(raw_response)
+            result = json.loads(raw_response)
+            print(f"[QCTO-DEBUG] parsed sections count: {len(result.get('sections', []))}", flush=True, file=sys.stderr)
+            return result
         except json.JSONDecodeError:
             try:
                 return json.loads(_repair_json_string(raw_response))
