@@ -116,7 +116,10 @@ def generate_presentation_task(job_id: str):
     try:
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
-        units = syllabus.content.get("units", [])
+        if syllabus.syllabus_type == "qcto":
+            units = syllabus.content.get("modules", [])
+        else:
+            units = syllabus.content.get("units", [])
         accreditation = syllabus.accreditation_info or {}
 
         logo_bytes = None
@@ -207,7 +210,10 @@ def generate_package_document_task(job_id: str):
 
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
-        units = syllabus.content.get("units", [])
+        if syllabus.syllabus_type == "qcto":
+            units = syllabus.content.get("modules", [])
+        else:
+            units = syllabus.content.get("units", [])
         accreditation = syllabus.accreditation_info or {}
 
         logo_bytes = None
