@@ -29,6 +29,12 @@ def trigger():
         flash("Invalid document type.")
         return redirect(url_for("generation_web.index"))
 
+    is_qcto_type = material_type.startswith("qcto_")
+    is_qcto_syllabus = syllabus.syllabus_type == "qcto"
+    if is_qcto_type != is_qcto_syllabus:
+        flash("This document type requires a matching syllabus (QCTO documents need a QCTO syllabus, and vice versa).")
+        return redirect(url_for("generation_web.index"))
+
     job = GenerationJob(
         organization_id=current_user.organization_id,
         syllabus_id=syllabus_id,

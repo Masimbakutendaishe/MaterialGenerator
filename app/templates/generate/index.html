@@ -14,14 +14,16 @@
         <div class="flex-1">
             <label class="block text-sm font-medium text-steel-500 mb-1.5">Syllabus</label>
             <select name="syllabus_id" id="standalone-syllabus-select" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                <option value="" disabled selected>Select a syllabus...</option>
                 {% for s in syllabi %}
-                <option value="{{ s.id }}" data-syllabus-type="{{ s.syllabus_type }}">{{ s.title }}</option>
+                <option value="{{ s.id }}" data-syllabus-type="{{ s.syllabus_type }}" data-title="{{ s.title }}">{{ s.title }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="w-64">
             <label class="block text-sm font-medium text-steel-500 mb-1.5">Type</label>
             <select name="material_type" id="standalone-type-select" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal" onchange="filterStandaloneSyllabi()">
+                <option value="" disabled selected>Select a document type...</option>
                 <option value="textbook">Textbook (Word)</option>
                 <option value="presentation">Presentation (PowerPoint)</option>
                 <option value="assessment">Assessment</option>
@@ -51,14 +53,16 @@
         <div class="flex-1">
             <label class="block text-sm font-medium text-steel-500 mb-1.5">Syllabus</label>
             <select name="syllabus_id" id="package-syllabus-select" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                <option value="" disabled selected>Select a syllabus...</option>
                 {% for s in syllabi %}
-                <option value="{{ s.id }}" data-syllabus-type="{{ s.syllabus_type }}">{{ s.title }}</option>
+                <option value="{{ s.id }}" data-syllabus-type="{{ s.syllabus_type }}" data-title="{{ s.title }}">{{ s.title }}</option>
                 {% endfor %}
             </select>
         </div>
         <div class="w-64">
             <label class="block text-sm font-medium text-steel-500 mb-1.5">Package</label>
             <select name="package_type" required onchange="filterPackageSyllabi()" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                <option value="" disabled selected>Select a package type...</option>
                 <option value="masterclass">Masterclass (Textbook + Slides + Assessment)</option>
                 <option value="full_training_set">Full Training Set (11 documents)</option>
                 <option value="qcto_full_set">QCTO Full Set (KM + PM + WM + Assessments + Video Guide)</option>
@@ -211,44 +215,39 @@
     setInterval(pollPackageStatuses, 4000);
 
   
-function filterStandaloneSyllabi() {
-    const typeSelect = document.getElementById('standalone-type-select');
-    const syllabusSelect = document.getElementById('standalone-syllabus-select');
-    if (!typeSelect || !syllabusSelect) return;
-
-    const isQcto = typeSelect.value.startsWith('qcto_');
-    let firstVisible = null;
-
-    Array.from(syllabusSelect.options).forEach(option => {
-        const optionType = option.dataset.syllabusType;
-        const matches = isQcto ? optionType === 'qcto' : optionType !== 'qcto';
-        option.hidden = !matches;
-        if (matches && !firstVisible) firstVisible = option;
-    });
-
-    if (syllabusSelect.selectedOptions[0] && syllabusSelect.selectedOptions[0].hidden && firstVisible) {
-        syllabusSelect.value = firstVisible.value;
-    }
-}
-
-function filterPackageSyllabi() {
-    const typeSelect = document.querySelector('select[name="package_type"]');
-    const syllabusSelect = document.getElementById('package-syllabus-select');
+function applySyllabusCompatibility(typeSelect, syllabusSelect) {
     if (!typeSelect || !syllabusSelect) return;
 
     const isQcto = typeSelect.value.startsWith('qcto');
-    let firstVisible = null;
 
     Array.from(syllabusSelect.options).forEach(option => {
+        if (!option.value) return; // skip the empty placeholder option
         const optionType = option.dataset.syllabusType;
         const matches = isQcto ? optionType === 'qcto' : optionType !== 'qcto';
-        option.hidden = !matches;
-        if (matches && !firstVisible) firstVisible = option;
+        option.disabled = !matches;
+        option.title = matches ? '' : (isQcto ? 'Not a QCTO syllabus — pick a QCTO syllabus to use this document type.' : 'This is a QCTO syllabus — pick a standard document type or a different syllabus.');
     });
 
-    if (syllabusSelect.selectedOptions[0] && syllabusSelect.selectedOptions[0].hidden && firstVisible) {
-        syllabusSelect.value = firstVisible.value;
+    // If the type changes and the currently selected syllabus is no longer valid, reset
+    // to the empty placeholder rather than silently jumping to a different syllabus.
+    const current = syllabusSelect.selectedOptions[0];
+    if (current && current.disabled) {
+        syllabusSelect.value = '';
     }
+}
+
+function filterStandaloneSyllabi() {
+    applySyllabusCompatibility(
+        document.getElementById('standalone-type-select'),
+        document.getElementById('standalone-syllabus-select')
+    );
+}
+
+function filterPackageSyllabi() {
+    applySyllabusCompatibility(
+        document.querySelector('select[name="package_type"]'),
+        document.getElementById('package-syllabus-select')
+    );
 }
 
 document.addEventListener('DOMContentLoaded', () => {
