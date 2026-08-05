@@ -294,3 +294,21 @@ def debug_latest_job_by_type(subtype):
         "document_subtype": job.document_subtype,
     }
 
+@web_bp.route("/debug-qcto-job")
+@login_required
+def debug_qcto_job():
+    if current_user.role != "superadmin":
+        return {"error": "forbidden"}, 403
+    from app.models.generation_job import GenerationJob
+    job = GenerationJob.query.filter(GenerationJob.document_subtype.like('qcto%')).order_by(GenerationJob.created_at.desc()).first()
+    if not job:
+        return {"error": "no qcto job found"}, 404
+    from app.tasks.generation_tasks import DOCUMENT_BUILDERS
+    qcto_registered = [k for k in DOCUMENT_BUILDERS if 'qcto' in k]
+    return {
+        "job_subtype": job.document_subtype,
+        "job_status": job.status,
+        "job_error": job.error_message,
+        "job_result_file_path": job.result_file_path,
+        "registered_qcto_builders": qcto_registered,
+    }
