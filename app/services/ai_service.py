@@ -991,3 +991,70 @@ an empty array for work_experience_elements. Do not invent content that isn't ge
             return json.loads(_repair_json_string(raw_response))
         except json.JSONDecodeError:
             return {"purpose": "", "work_experience_elements": []}
+
+def generate_qcto_practical_module_content(module: dict, job_id: str = None) -> dict:
+    """Generates content for one Practical Skill Module (PM) of a QCTO qualification,
+    matching the real pattern: module intro/purpose, sub-modules table, then per-unit
+    'Scope of Practical Skill' framing, detailed PA content, an example/tip box, and an
+    exercise (scenario + task + questions)."""
+    pa_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", []))
+
+    prompt = f"""You are writing a Practical Skills Module for a South African QCTO-accredited
+occupational qualification, in the style of real accredited training material — detailed,
+practical, hands-on.
+
+Module: {module.get('title', '')}
+Module Code: {module.get('module_code', '')}
+NQF Level: {module.get('nqf_level', '')}
+Credits: {module.get('credits', '')}
+
+This module's Performance Assessment elements:
+{pa_text}
+
+Write:
+1. A module introduction (2-3 sentences)
+2. A module purpose statement (1-2 sentences)
+3. Group the Performance Assessment elements into 2-4 logical "units" (practical skill units).
+   For EACH unit, write:
+   - A short "Scope of Practical Skill" framing statement
+   - Genuinely detailed, specific content covering the PA elements in that unit
+   - One example_tip block
+   - One exercise block (a realistic scenario, a task instruction, and 1-2 reflection questions)
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "module_intro": "<2-3 sentences>",
+  "module_purpose": "<1-2 sentences>",
+  "units": [
+    {{
+      "unit_title": "<short unit title>",
+      "scope_statement": "<Scope of Practical Skill framing, 1-2 sentences>",
+      "blocks": [
+        {{"type": "paragraph", "text": "Detailed explanatory text, 150-300 words with real depth."}},
+        {{"type": "list", "items": ["<key point 1>", "<key point 2>"], "ordered": false}},
+        {{"type": "diagram", "steps": ["<step 1>", "<step 2>", "<step 3>"], "caption": "What this diagram shows"}},
+        {{"type": "image", "search_term": "SPECIFIC concrete search phrase for a real relevant photo", "caption": "What this image shows"}},
+        {{"type": "example_tip", "example": "A realistic workplace example.", "tip": "A practical, actionable tip."}},
+        {{"type": "exercise", "scenario": "A realistic workplace scenario.", "task": "What the learner must do.", "questions": ["<reflection question 1>", "<reflection question 2>"]}}
+      ]
+    }}
+  ]
+}}
+
+NEVER invent specific standard numbers or regulatory citations you are not confident are real.
+Every unit MUST include at least two paragraph blocks, one example_tip block, and one exercise
+block. Include a diagram block where the unit involves a step-by-step process/procedure, and an
+image block where a real photo would meaningfully illustrate a concrete tool/equipment/environment.
+Use table blocks only where genuinely relevant."""
+
+    for attempt in range(2):
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=8000, job_id=job_id)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue

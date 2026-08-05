@@ -15,6 +15,7 @@ from app.services.alignment_matrix_service import build_alignment_matrix_docx
 from app.services.poe_guide_service import build_poe_guide_docx
 from functools import partial as _partial  # already imported as partial, reuse existing import
 from app.services.qcto_knowledge_module_service import build_qcto_knowledge_module_docx_adapter
+from app.services.qcto_practical_module_service import build_qcto_practical_module_docx_adapter
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -166,6 +167,7 @@ DOCUMENT_BUILDERS = {
     "learner_induction_guide": (partial(build_guide_docx, document_subtype="learner_induction_guide"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "programme_strategy": (partial(build_guide_docx, document_subtype="programme_strategy"), "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "programme_alignment_matrix": (build_alignment_matrix_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_practical_modules": (build_qcto_practical_module_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
 }
 
 

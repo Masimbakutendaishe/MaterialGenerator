@@ -157,6 +157,31 @@ def _render_content_block(doc, block, primary_hex, secondary, accent_hex=None):
 
         doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
+    elif block_type == "exercise":
+        box_para = doc.add_paragraph()
+        _shade_paragraph(box_para, "F4F6F8")
+        _add_full_border(box_para, primary_hex)
+        title_run = box_para.add_run("Exercise Time!\n")
+        title_run.bold = True
+        title_run.font.size = Pt(11)
+        title_run.font.color.rgb = secondary
+
+        scenario_run = box_para.add_run("Scenario: ")
+        scenario_run.bold = True
+        scenario_run.font.size = Pt(10)
+        box_para.add_run(f"{block.get('scenario', '')}\n")
+
+        task_run = box_para.add_run("Task: ")
+        task_run.bold = True
+        task_run.font.size = Pt(10)
+        box_para.add_run(f"{block.get('task', '')}\n")
+
+        for q in block.get("questions", []):
+            q_run = box_para.add_run(f"• {q}\n")
+            q_run.font.size = Pt(10)
+
+        doc.add_paragraph().paragraph_format.space_after = Pt(6)
+
     elif block_type == "info_box":
         box_para = doc.add_paragraph()
         box_para.paragraph_format.space_before = Pt(6)
