@@ -14,9 +14,12 @@ class Organization(db.Model):
     plan = db.Column(db.String(50), nullable=False, default="trial")  # "trial" | "subscription" | "pay_per_use"
     trial_ends_at = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    plan_id = db.Column(db.String(36), db.ForeignKey("plans.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     users = db.relationship("User", back_populates="organization", cascade="all, delete-orphan")
+
+    plan_tier = db.relationship("Plan", back_populates="organizations")
 
     def is_accessible(self) -> bool:
         """Central check for whether this org's users should be allowed to use the platform.
