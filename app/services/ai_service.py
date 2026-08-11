@@ -92,12 +92,17 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 
 Preserve the original structure and wording as closely as possible — this is restructuring, not rewriting."""
 
-    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
-
-    try:
-        return json.loads(raw_response)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"AI response was not valid JSON: {exc}") from exc
+    for attempt in range(2):
+        raw_response = _call_model("syllabus_structuring", prompt, max_tokens=6000)
+        try:
+            return json.loads(raw_response)
+        except json.JSONDecodeError:
+            try:
+                return json.loads(_repair_json_string(raw_response))
+            except json.JSONDecodeError as exc:
+                if attempt == 1:
+                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
+                continue
 
 def _call_model(task: str, prompt: str, max_tokens: int = 2000, max_retries: int = 4, job_id: str = None) -> str:
     """Tries each provider in the task's chain in order (free options first, paid last).
