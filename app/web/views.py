@@ -21,6 +21,9 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password) and user.is_active:
+            if not user.organization or not user.organization.is_accessible():
+                flash("This organization's access has been suspended. Please contact support.")
+                return redirect(url_for("web.login"))
             from flask import session
             session.permanent = True
             login_user(user)
@@ -333,3 +336,21 @@ def debug_flush_redis():
     from app.extensions import celery_app
     celery_app.control.purge()
     return {"status": "Redis task queue purged"}
+
+
+@web_bp.before_request
+def check_organization_access():
+    """Blocks every request from a user whose organization has been disabled or whose
+    trial has expired — closes the gap where a disabled org's users could keep working
+    if they were already logged in, since is_active alone was never actually enforced."""
+    if not current_user.is_authenticated:
+        return  # let login/public routes through normally
+
+    if current_user.role == "superadmin":
+        return  # superadmins aren't tied to a client org's access status
+
+    if not current_user.organization or not current_user.organization.is_accessible():
+        from flask_login import logout_user
+        logout_user()
+        flash("This organization's access has been suspended. Please contact support.")
+        return redirect(url_for("web.login"))
