@@ -30,6 +30,7 @@
         <thead class="bg-steel-50 border-b border-steel-200 sticky top-0">
             <tr>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Name</th>
+                <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Usage</th>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Plan</th>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Trial Ends</th>
                 <th class="text-left px-6 py-3 font-medium text-steel-500 uppercase text-xs tracking-wide">Status</th>
@@ -40,6 +41,10 @@
             <tr class="border-b border-steel-100 hover:bg-steel-50 transition">
                 <td class="px-6 py-3">
                     <a href="{{ url_for('web_admin.organization_detail', org_id=org.id) }}" class="text-signal font-medium hover:underline">{{ org.name }}</a>
+                </td>
+                <td class="px-6 py-3 text-xs text-steel-500">
+                    <div>{{ usage[org.id].packages_total }} packages <span class="text-steel-400">({{ usage[org.id].packages_month }} this month)</span></div>
+                    <div>{{ usage[org.id].singles_total }} single docs <span class="text-steel-400">({{ usage[org.id].singles_month }} this month)</span></div>
                 </td>
                 <td class="px-6 py-3 text-steel-500">{{ org.plan }}</td>
                 <td class="px-6 py-3 text-steel-500">{{ org.trial_ends_at.strftime('%Y-%m-%d') if org.trial_ends_at else '—' }}</td>

@@ -21,7 +21,7 @@ def login():
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password) and user.is_active:
-            if not user.organization or not user.organization.is_accessible():
+            if user.role != "superadmin" and (not user.organization or not user.organization.is_accessible()):
                 flash("This organization's access has been suspended. Please contact support.")
                 return redirect(url_for("web.login"))
             from flask import session
@@ -348,7 +348,6 @@ def check_organization_access():
 
     if current_user.role == "superadmin":
         return  # superadmins aren't tied to a client org's access status
-
     if not current_user.organization or not current_user.organization.is_accessible():
         from flask_login import logout_user
         logout_user()

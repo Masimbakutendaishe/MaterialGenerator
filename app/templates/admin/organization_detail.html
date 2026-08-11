@@ -7,7 +7,9 @@
         <h1 class="text-xl font-semibold text-navy-950 mt-1">{{ org.name }}</h1>
         <p class="text-steel-500 mt-1 text-sm">
             {{ org.plan }} plan
+            {% if org.plan_tier %} — {{ org.plan_tier.name }} tier{% endif %}
             {% if org.trial_ends_at %} — trial ends {{ org.trial_ends_at.strftime('%Y-%m-%d') }}{% endif %}
+            {% if org.force_active_override %} — <span class="text-amber-600 font-medium">Override Active</span>{% endif %}
         </p>
     </div>
     <form method="POST" action="{{ url_for('web_admin.toggle_organization', org_id=org.id) }}">
@@ -16,6 +18,42 @@
             {% if org.is_active %}border-red-300 text-red-700 hover:bg-red-50{% else %}border-green-300 text-green-700 hover:bg-green-50{% endif %}">
             {{ 'Disable Organization' if org.is_active else 'Enable Organization' }}
         </button>
+    </form>
+</div>
+
+<div class="bg-white rounded-lg border border-steel-200 p-6 mb-6 space-y-5">
+    <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide">Access &amp; Plan Controls</h2>
+
+    <form method="POST" action="{{ url_for('web_admin.set_organization_plan', org_id=org.id) }}" class="flex items-end gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+            <label class="block text-xs font-medium text-steel-500 mb-1.5">Plan Tier</label>
+            <select name="plan_id" class="border border-steel-200 rounded px-3 py-2 text-sm text-navy-950">
+                <option value="">No plan (pay-as-you-go)</option>
+                {% for plan in plans %}
+                <option value="{{ plan.id }}" {% if org.plan_id == plan.id %}selected{% endif %}>{{ plan.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="bg-navy-950 text-white px-4 py-2 rounded text-sm font-medium hover:bg-navy-900 transition">Save Plan</button>
+    </form>
+
+    <form method="POST" action="{{ url_for('web_admin.extend_trial', org_id=org.id) }}" class="flex items-end gap-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+            <label class="block text-xs font-medium text-steel-500 mb-1.5">Extend Trial To</label>
+            <input type="date" name="trial_ends_at" class="border border-steel-200 rounded px-3 py-2 text-sm text-navy-950">
+        </div>
+        <button type="submit" class="bg-navy-950 text-white px-4 py-2 rounded text-sm font-medium hover:bg-navy-900 transition">Update Trial Date</button>
+    </form>
+
+    <form method="POST" action="{{ url_for('web_admin.toggle_override', org_id=org.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="px-4 py-2 rounded text-sm font-medium border transition
+            {% if org.force_active_override %}border-amber-300 text-amber-700 hover:bg-amber-50{% else %}border-steel-300 text-steel-600 hover:bg-steel-50{% endif %}">
+            {{ 'Remove Manual Override' if org.force_active_override else 'Force Enable (Override Trial/Plan Limits)' }}
+        </button>
+        <p class="text-xs text-steel-400 mt-1.5">When active, this organization stays accessible regardless of trial expiry or (future) plan limits.</p>
     </form>
 </div>
 

@@ -14,6 +14,7 @@ class Organization(db.Model):
     plan = db.Column(db.String(50), nullable=False, default="trial")  # "trial" | "subscription" | "pay_per_use"
     trial_ends_at = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    force_active_override = db.Column(db.Boolean, nullable=False, default=False)  # admin override — bypasses trial expiry check entirely
     plan_id = db.Column(db.String(36), db.ForeignKey("plans.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -26,6 +27,8 @@ class Organization(db.Model):
         Called by the access-control decorator on every protected route."""
         if not self.is_active:
             return False
+        if self.force_active_override:
+            return True  # admin has explicitly overridden trial-expiry / plan-limit blocking
         if self.trial_ends_at and datetime.now(timezone.utc) > self.trial_ends_at.replace(tzinfo=timezone.utc):
             return False
         return True

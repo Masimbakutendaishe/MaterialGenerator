@@ -13,8 +13,39 @@ web_admin_bp = Blueprint("web_admin", __name__, url_prefix="/admin")
 @web_admin_bp.route("/")
 @superadmin_required
 def organizations():
+    from datetime import datetime, timezone
+    from app.models.generation_job import GenerationJob
+    from app.models.material_package import MaterialPackage
+    from sqlalchemy import func
+
     orgs = Organization.query.order_by(Organization.created_at.desc()).all()
-    return render_template("admin/organizations.html", orgs=orgs)
+
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    usage = {}
+    for org in orgs:
+        # Standalone singular documents ONLY — explicitly excludes anything generated as
+        # part of a package, since those are counted separately below.
+        singles_total = GenerationJob.query.filter_by(organization_id=org.id, status="done", package_id=None).count()
+        singles_month = GenerationJob.query.filter(
+            GenerationJob.organization_id == org.id,
+            GenerationJob.status == "done",
+            GenerationJob.package_id.is_(None),
+            GenerationJob.created_at >= month_start,
+        ).count()
+        packages_total = MaterialPackage.query.filter_by(organization_id=org.id).count()
+        packages_month = MaterialPackage.query.filter(
+            MaterialPackage.organization_id == org.id,
+            MaterialPackage.created_at >= month_start,
+        ).count()
+        usage[org.id] = {
+            "singles_total": singles_total,
+            "singles_month": singles_month,
+            "packages_total": packages_total,
+            "packages_month": packages_month,
+        }
+
+    return render_template("admin/organizations.html", orgs=orgs, usage=usage)
 
 
 @web_admin_bp.route("/organizations", methods=["POST"])
@@ -39,10 +70,12 @@ def create_organization():
 @web_admin_bp.route("/organizations/<org_id>")
 @superadmin_required
 def organization_detail(org_id):
+    from app.models.plan import Plan
     org = Organization.query.get_or_404(org_id)
     users = User.query.filter_by(organization_id=org_id).order_by(User.created_at.desc()).all()
     qa_reviewers = User.query.filter_by(organization_id=org_id, role="qa_reviewer").all()
-    return render_template("admin/organization_detail.html", org=org, users=users, valid_roles=VALID_ROLES, qa_reviewers=qa_reviewers)
+    plans = Plan.query.filter_by(is_active=True).order_by(Plan.price_zar.asc()).all()
+    return render_template("admin/organization_detail.html", org=org, users=users, valid_roles=VALID_ROLES, qa_reviewers=qa_reviewers, plans=plans)
 
 
 @web_admin_bp.route("/organizations/<org_id>/toggle", methods=["POST"])
@@ -52,6 +85,41 @@ def toggle_organization(org_id):
     org.is_active = not org.is_active
     db.session.commit()
     flash(f"Organization '{org.name}' {'enabled' if org.is_active else 'disabled'}.")
+    return redirect(url_for("web_admin.organization_detail", org_id=org_id))
+
+@web_admin_bp.route("/organizations/<org_id>/plan", methods=["POST"])
+@superadmin_required
+def set_organization_plan(org_id):
+    org = Organization.query.get_or_404(org_id)
+    plan_id = request.form.get("plan_id") or None
+    org.plan_id = plan_id
+    db.session.commit()
+    flash(f"Plan updated for '{org.name}'.")
+    return redirect(url_for("web_admin.organization_detail", org_id=org_id))
+
+
+@web_admin_bp.route("/organizations/<org_id>/extend-trial", methods=["POST"])
+@superadmin_required
+def extend_trial(org_id):
+    org = Organization.query.get_or_404(org_id)
+    trial_ends_at = request.form.get("trial_ends_at")
+    if trial_ends_at:
+        from datetime import datetime
+        org.trial_ends_at = datetime.strptime(trial_ends_at, "%Y-%m-%d")
+        db.session.commit()
+        flash(f"Trial date updated for '{org.name}'.")
+    else:
+        flash("Please select a date.")
+    return redirect(url_for("web_admin.organization_detail", org_id=org_id))
+
+
+@web_admin_bp.route("/organizations/<org_id>/override", methods=["POST"])
+@superadmin_required
+def toggle_override(org_id):
+    org = Organization.query.get_or_404(org_id)
+    org.force_active_override = not org.force_active_override
+    db.session.commit()
+    flash(f"Manual override {'activated' if org.force_active_override else 'removed'} for '{org.name}'.")
     return redirect(url_for("web_admin.organization_detail", org_id=org_id))
 
 
