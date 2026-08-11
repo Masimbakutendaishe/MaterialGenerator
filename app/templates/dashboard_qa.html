@@ -16,7 +16,7 @@
     </div>
 </div>
 
-<div class="grid grid-cols-2 gap-5 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-8">
     <a href="{{ url_for('review_web.list_reviews') }}" class="block bg-gradient-to-br from-navy-950 to-navy-800 rounded-xl p-6 text-white hover:from-navy-900 hover:to-navy-700 transition">
         <p class="text-steel-300 text-xs uppercase tracking-wide font-medium mb-2">Awaiting Your Review</p>
         <p class="text-3xl font-semibold">{{ pending_count }}</p>
