@@ -735,6 +735,7 @@ def generate_qcto_knowledge_module_content(module: dict, job_id: str = None) -> 
     content per Knowledge Topic with a practical example/tip callout."""
     topics_text = "\n".join(
         f"- {t.get('topic_code', '')}: {t.get('title', '')} (weight: {t.get('weight', 'n/a')})"
+        + (f"\n  Guidelines on what to cover: {t.get('guidelines')}" if t.get("guidelines") else "")
         for t in module.get("topics", [])
     )
 
@@ -754,8 +755,10 @@ Write:
 1. A short module introduction (2-3 sentences on why this module matters occupationally)
 2. A short module purpose statement (1-2 sentences)
 3. For EACH Knowledge Topic listed above, write genuinely detailed, specific content — real
-   depth, not a shallow gloss. Include a "example_tip" block for each topic: a realistic
-   workplace example paired with a practical, actionable tip.
+   depth, not a shallow gloss. Where a topic has "Guidelines on what to cover" listed above,
+   your content MUST genuinely address everything those guidelines specify — treat them as a
+   real requirement, not optional context. Include a "example_tip" block for each topic: a
+   realistic workplace example paired with a practical, actionable tip.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -804,6 +807,21 @@ def structure_qcto_syllabus_from_text(raw_text: str) -> dict:
     prompt = f"""You are an instructional designer. Below is raw text extracted from an uploaded
 South African QCTO curriculum document. Extract and structure its Knowledge Modules (KM),
 Practical Skill Modules (PM), and Work Experience Modules (WM).
+
+IMPORTANT — QCTO curriculum documents vary significantly in format. Different providers use
+different code schemes, section header styles, and layouts. Do NOT assume one rigid structure.
+Before extracting, check these signals, in order of reliability:
+1. If the document has a Table of Contents or Curriculum Summary listing modules with codes
+   and/or page numbers, use it as your primary index of what modules genuinely exist — this is
+   usually the most complete and reliable listing.
+2. Cross-reference against any "Total number of credits for [Module Type] Modules" summary
+   lines, which often confirm the full set of modules per category.
+3. Scan the body of the document for module/module-group headings even if their exact code
+   format differs from a standard "QUALCODE-KM-01" pattern (e.g. some documents use only a
+   number, only a title, or a different separator).
+
+Every module you find — regardless of exact formatting — MUST be included. Do not skip a module
+just because its heading style differs from others in the same document.
 
 Raw extracted text:
 ---
@@ -869,14 +887,22 @@ specific module isn't stated near it, infer from context or use the qualificatio
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def _extract_relevant_window(raw_text: str, module_code: str, window_size: int = 30000) -> str:
-    """Finds the LAST occurrence of a module's code in the document — curriculum documents
-    typically list every module in a brief summary near the start, then cover each one in
-    full detail later. The last occurrence is far more likely to be the actual detailed
-    section than the first (which is usually just the summary mention)."""
-    idx = raw_text.rfind(module_code)
+def _extract_relevant_window(raw_text: str, module_code: str, module_title: str = "", window_size: int = 30000) -> str:
+    """Finds the section of the document most likely to contain a module's real detail,
+    trying several signals in order since curriculum documents vary in format:
+    1. The LAST occurrence of the module's exact code (detail sections usually come after
+       an earlier summary mention, so the last occurrence is the more reliable one).
+    2. If the code isn't found verbatim, the LAST occurrence of the module's title instead —
+       some documents use headings by title rather than repeating the code.
+    3. If neither is found, fall back to scanning from the start of the document."""
+    idx = raw_text.rfind(module_code) if module_code else -1
+
+    if idx == -1 and module_title:
+        idx = raw_text.rfind(module_title)
+
     if idx == -1:
         return raw_text[:window_size]
+
     start = max(0, idx - 2000)
     end = min(len(raw_text), idx + window_size)
     return raw_text[start:end]
@@ -886,10 +912,16 @@ def extract_qcto_module_topics(module_code: str, module_title: str, raw_text: st
     the full curriculum text — used as a second pass after structure_qcto_syllabus_from_text
     identifies the module list, avoiding truncation issues on large documents by focusing
     each call on just one module's relevant section."""
-    truncated_text = _extract_relevant_window(raw_text, module_code)  # still capped, but each call only needs to find ONE module's section
+    truncated_text = _extract_relevant_window(raw_text, module_code, module_title)  # still capped, but each call only needs to find ONE module's section
 
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this module, and extract its detailed topic breakdown.
+
+IMPORTANT — beyond the topic elements themselves, carefully check the text UNDERNEATH each
+topic/element for any guideline, explanatory, or "what to cover" text — this is often a
+paragraph or short section explaining what the topic should include, separate from the bare
+element list. Capture this as "guidelines" per topic if present. Do not skip this even if it
+appears in a different format (a paragraph, a bulleted note, a "Guidelines for..." heading).
 
 Module Code: {module_code}
 Module Title: {module_title}
@@ -907,15 +939,14 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
       "title": "<topic title>",
       "weight": "<weight percentage if given, else null>",
       "elements": ["<topic element 1>", "<topic element 2>"],
+      "guidelines": "<any explanatory/guideline text found underneath this topic, describing what should be covered — or null if none found>",
       "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
     }}
   ]
 }}
-
 If you cannot find this module's detailed topic breakdown in the text, return {{"topics": []}}.
-Do not invent topics that aren't genuinely present in the text."""
-
-    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
+Do not invent topics or guidelines that aren't genuinely present in the text."""
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=4000)
     try:
         result = json.loads(raw_response)
     except json.JSONDecodeError:
@@ -930,10 +961,16 @@ def extract_qcto_pm_details(module_code: str, module_title: str, raw_text: str) 
     """Extracts detailed performance assessment, applied knowledge, and assessment criteria
     for ONE specific Practical Skill Module (PM) — second-pass extraction, same pattern as
     extract_qcto_module_topics, to avoid truncation on large documents."""
-    truncated_text = _extract_relevant_window(raw_text, module_code)
+    truncated_text = _extract_relevant_window(raw_text, module_code, module_title)
 
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this Practical Skill Module, and extract its detail.
+
+IMPORTANT — beyond the performance assessment and applied knowledge elements themselves,
+carefully check the text UNDERNEATH them for any guideline, explanatory, or "what to cover"
+text — this is often a paragraph or short section explaining what should actually be done or
+assessed, separate from the bare element list. Capture this as "guidelines" if present, even
+if it appears in a different format (a paragraph, a bulleted note, a "Guidelines for..." heading).
 
 Module Code: {module_code}
 Module Title: {module_title}
@@ -947,10 +984,11 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 {{
   "performance_assessment": ["<PA element 1>", "<PA element 2>"],
   "applied_knowledge": ["<AK element 1>", "<AK element 2>"],
+  "guidelines": "<any explanatory/guideline text found underneath these elements — or null if none found>",
   "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
 }}
 
-If you cannot find this module's detail in the text, return empty arrays for each field.
+If you cannot find this module's detail in the text, return empty arrays for each field and null for guidelines.
 Do not invent content that isn't genuinely present in the text."""
 
     raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
@@ -966,10 +1004,16 @@ Do not invent content that isn't genuinely present in the text."""
 def extract_qcto_wm_details(module_code: str, module_title: str, raw_text: str) -> dict:
     """Extracts detailed work experience elements for ONE specific Work Experience Module
     (WM) — second-pass extraction, same pattern as extract_qcto_module_topics."""
-    truncated_text = _extract_relevant_window(raw_text, module_code)
+    truncated_text = _extract_relevant_window(raw_text, module_code, module_title)
 
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this Work Experience Module, and extract its detail.
+
+IMPORTANT — beyond the work experience elements themselves, carefully check the text
+UNDERNEATH each element for any guideline, explanatory, or "what to cover" text (often
+labeled something like "Guidelines for Work Experiences") — this explains what should
+actually be done for that element, separate from the bare element list. Capture this as
+"guidelines" if present, even if it appears in a different format.
 
 Module Code: {module_code}
 Module Title: {module_title}
@@ -982,13 +1026,15 @@ Full curriculum text:
 Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 {{
   "purpose": "<purpose statement for this module>",
-  "work_experience_elements": ["<WE element 1>", "<WE element 2>"]
+  "work_experience_elements": ["<WE element 1>", "<WE element 2>"],
+  "guidelines": "<any explanatory/guideline text found underneath the elements — or null if none found>"
 }}
 
-If you cannot find this module's detail in the text, return an empty string for purpose and
-an empty array for work_experience_elements. Do not invent content that isn't genuinely present."""
+If you cannot find this module's detail in the text, return an empty string for purpose, an
+empty array for work_experience_elements, and null for guidelines. Do not invent content that
+isn't genuinely present."""
 
-    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=4000)
     try:
         return json.loads(raw_response)
     except json.JSONDecodeError:
@@ -1003,6 +1049,7 @@ def generate_qcto_practical_module_content(module: dict, job_id: str = None) -> 
     'Scope of Practical Skill' framing, detailed PA content, an example/tip box, and an
     exercise (scenario + task + questions)."""
     pa_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", []))
+    guidelines_text = module.get("guidelines")
 
     prompt = f"""You are writing a Practical Skills Module for a South African QCTO-accredited
 occupational qualification, in the style of real accredited training material — detailed,
@@ -1015,6 +1062,10 @@ Credits: {module.get('credits', '')}
 
 This module's Performance Assessment elements:
 {pa_text}
+{f"Guidelines on what to cover for this module: {guidelines_text}" if guidelines_text else ""}
+
+IMPORTANT — where guidelines are provided above, your content MUST genuinely address everything
+they specify — treat them as a real requirement, not optional context.
 
 Write:
 1. A module introduction (2-3 sentences)
@@ -1071,6 +1122,7 @@ def generate_qcto_workplace_module_content(module: dict, job_id: str = None) -> 
     of Work Experience' framing with nested Key Work Activities (concept, step-by-step
     process, practical example), plus an example/tip box and exercise per unit."""
     we_text = "\n".join(f"- {we}" for we in module.get("work_experience_elements", []))
+    guidelines_text = module.get("guidelines")
 
     prompt = f"""You are writing a Workplace Module for a South African QCTO-accredited
 occupational qualification, in the style of real accredited training material — detailed,
@@ -1084,6 +1136,10 @@ Purpose: {module.get('purpose', '')}
 
 This module's Work Experience elements:
 {we_text}
+{f"Guidelines on what to cover for this module: {guidelines_text}" if guidelines_text else ""}
+
+IMPORTANT — where guidelines are provided above, your content MUST genuinely address everything
+they specify — treat them as a real requirement, not optional context.
 
 Write:
 1. A module introduction (2-3 sentences)

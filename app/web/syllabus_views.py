@@ -74,6 +74,11 @@ def create_upload():
     nqf_level = request.form.get("nqf_level")
     syllabus_type = request.form.get("syllabus_type", "standard")
 
+    # Store the original uploaded file so it can be viewed later for comparison against generated output
+    file_storage.stream.seek(0)
+    original_bytes = file_storage.stream.read()
+    file_storage.stream.seek(0)
+
     try:
         raw_text = extract_text_from_upload(file_storage)
     except ValueError as exc:
@@ -100,6 +105,12 @@ def create_upload():
             accreditation_info={"seta": seta, "nqf_level": nqf_level},
         )
         db.session.add(syllabus)
+        db.session.flush()
+
+        from app.services.storage_service import upload_file
+        file_key = f"{current_user.organization_id}/syllabi/{syllabus.id}_{file_storage.filename}"
+        upload_file(original_bytes, file_key, file_storage.mimetype or "application/pdf")
+        syllabus.original_file_key = file_key
         db.session.commit()
 
         process_qcto_syllabus_task.delay(syllabus.id, raw_text)
@@ -124,6 +135,12 @@ def create_upload():
         accreditation_info={"seta": seta, "nqf_level": nqf_level},
     )
     db.session.add(syllabus)
+    db.session.flush()
+
+    from app.services.storage_service import upload_file
+    file_key = f"{current_user.organization_id}/syllabi/{syllabus.id}_{file_storage.filename}"
+    upload_file(original_bytes, file_key, file_storage.mimetype or "application/pdf")
+    syllabus.original_file_key = file_key
     db.session.commit()
 
     flash(f"Syllabus '{title}' created successfully.")
@@ -169,3 +186,16 @@ def detail(syllabus_id):
         flash("You do not have access to that syllabus.")
         return redirect(url_for("syllabus_web.list_syllabi"))
     return render_template("syllabus/detail.html", syllabus=syllabus)
+
+
+@syllabus_web_bp.route("/<syllabus_id>/original-file")
+@login_required
+def view_original_file(syllabus_id):
+    from app.services.storage_service import get_presigned_url
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first()
+    if not syllabus or not syllabus.original_file_key:
+        flash("No original file available for this syllabus.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    url = get_presigned_url(syllabus.original_file_key, expires_in=300)
+    return redirect(url)

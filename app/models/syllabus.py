@@ -14,6 +14,7 @@ class Syllabus(db.Model):
 
     title = db.Column(db.String(255), nullable=False)
     source = db.Column(db.String(50), nullable=False)  # "uploaded" | "typed" | "ai_generated"
+    original_file_key = db.Column(db.String(500), nullable=True)  # storage key for the raw uploaded file, if source == "uploaded"
 
     # Structured content: units, learning outcomes, assessment criteria — shape defined by syllabus_service
     content = db.Column(db.JSON, nullable=False, default=dict)
