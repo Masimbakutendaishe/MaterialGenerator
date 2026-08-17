@@ -69,7 +69,7 @@ def create_upload():
         return redirect(url_for("syllabus_web.new"))
 
     file_storage = request.files["file"]
-    title = request.form.get("title") or file_storage.filename
+    title = request.form.get("title")
     seta = request.form.get("seta")
     nqf_level = request.form.get("nqf_level")
     syllabus_type = request.form.get("syllabus_type", "standard")
@@ -88,6 +88,10 @@ def create_upload():
     if not raw_text.strip():
         flash("No readable text found in the uploaded file.")
         return redirect(url_for("syllabus_web.new"))
+
+    if not title:
+        from app.services.ai_service import derive_title_from_text
+        title = derive_title_from_text(raw_text)
 
     if syllabus_type == "qcto":
         # QCTO extraction can take a while (many sequential AI calls) — create the

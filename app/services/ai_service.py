@@ -10,6 +10,17 @@ import google.generativeai as genai
 
 import re
 
+def _has_real_content(items) -> bool:
+    """True only if a list/value genuinely contains real extracted content — used to detect
+    modules with no source material, so we can write an honest placeholder instead of letting
+    the AI invent plausible-looking but ungrounded content."""
+    if not items:
+        return False
+    if isinstance(items, list):
+        return len(items) > 0
+    if isinstance(items, str):
+        return bool(items.strip())
+    return bool(items)
 
 def _repair_json_string(raw: str) -> str:
     """Fixes common ways AI models break JSON: stray backslashes, trailing commas
@@ -733,6 +744,13 @@ def generate_qcto_knowledge_module_content(module: dict, job_id: str = None) -> 
     """Generates content for one Knowledge Module (KM) of a QCTO qualification, matching
     the real structural pattern: module intro, sub-modules/units table, then detailed
     content per Knowledge Topic with a practical example/tip callout."""
+    if not _has_real_content(module.get("topics")):
+        return {
+            "module_intro": f"No specific curriculum content was provided for '{module.get('title', 'this module')}' in the uploaded document.",
+            "module_purpose": "Please supply source material (topics, elements, or guidelines) for this module to generate detailed content.",
+            "topics": [],
+        }
+
     topics_text = "\n".join(
         f"- {t.get('topic_code', '')}: {t.get('title', '')} (weight: {t.get('weight', 'n/a')})"
         + (f"\n  Guidelines on what to cover: {t.get('guidelines')}" if t.get("guidelines") else "")
@@ -1048,6 +1066,13 @@ def generate_qcto_practical_module_content(module: dict, job_id: str = None) -> 
     matching the real pattern: module intro/purpose, sub-modules table, then per-unit
     'Scope of Practical Skill' framing, detailed PA content, an example/tip box, and an
     exercise (scenario + task + questions)."""
+    if not _has_real_content(module.get("performance_assessment")):
+        return {
+            "module_intro": f"No specific curriculum content was provided for '{module.get('title', 'this module')}' in the uploaded document.",
+            "module_purpose": "Please supply source material (performance assessment elements or guidelines) for this module to generate detailed content.",
+            "units": [],
+        }
+
     pa_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", []))
     guidelines_text = module.get("guidelines")
 
@@ -1121,6 +1146,13 @@ def generate_qcto_workplace_module_content(module: dict, job_id: str = None) -> 
     qualification, matching the real pattern: module intro/purpose, then per-unit 'Scope
     of Work Experience' framing with nested Key Work Activities (concept, step-by-step
     process, practical example), plus an example/tip box and exercise per unit."""
+    if not _has_real_content(module.get("work_experience_elements")):
+        return {
+            "module_intro": f"No specific curriculum content was provided for '{module.get('title', 'this module')}' in the uploaded document.",
+            "module_purpose": "Please supply source material (work experience elements or guidelines) for this module to generate detailed content.",
+            "units": [],
+        }
+
     we_text = "\n".join(f"- {we}" for we in module.get("work_experience_elements", []))
     guidelines_text = module.get("guidelines")
 
@@ -1303,3 +1335,28 @@ regulatory citations you are not confident are real."""
                 if attempt == 1:
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
+
+def derive_title_from_text(raw_text: str) -> str:
+    """Derives a proper, human-readable course/qualification title from the actual document
+    content — used when the user doesn't provide a title on upload, instead of falling back
+    to the raw filename (which is often poorly formatted, e.g. 'SPCurriculumFirstAid.pdf')."""
+    truncated_text = raw_text[:3000]
+
+    prompt = f"""Below is the start of an uploaded training curriculum/syllabus document.
+Identify the real course or qualification title it represents, and write it as a clean,
+properly formatted title (proper spacing, capitalization, no file extensions or codes unless
+genuinely part of the title).
+
+Document text:
+---
+{truncated_text}
+---
+
+Return ONLY the title text itself, nothing else — no quotes, no markdown, no explanation."""
+
+    try:
+        result = _call_model("slide_content", prompt, max_tokens=50)
+        cleaned = result.strip().strip('"').strip("'")
+        return cleaned if cleaned else "Untitled Syllabus"
+    except Exception:
+        return "Untitled Syllabus"
