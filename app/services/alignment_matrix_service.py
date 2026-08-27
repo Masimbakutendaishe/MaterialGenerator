@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_alignment_matrix_row
-from app.services.document_service import _hex_to_rgb, _add_branded_header_footer, DEFAULT_PRIMARY
+from app.services.document_service import _hex_to_rgb, _add_page_numbers, DEFAULT_PRIMARY
 
 TYPE_LABELS = {
     "MC": "Multiple Choice", "SQ": "Short Question", "LQ": "Long Question",
@@ -90,7 +90,7 @@ def build_alignment_matrix_docx(title: str, units: list, organization_name: str 
     for code, label in TYPE_LABELS.items():
         doc.add_paragraph(f"{code} = {label}", style="List Bullet")
 
-    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
+    _add_page_numbers(doc)
 
     buffer = BytesIO()
     doc.save(buffer)

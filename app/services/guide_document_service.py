@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_guide_section_content
-from app.services.document_service import _hex_to_rgb, _add_bottom_border, _render_content_block, _add_branded_header_footer, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT
+from app.services.document_service import _hex_to_rgb, _add_bottom_border, _render_content_block, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT
 
 DOCUMENT_LABELS = {
     "learner_manual": "Learner Manual",
@@ -81,7 +81,7 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
     if document_subtype in ("learner_manual",):
         from app.services.document_service import _add_signature_block
         _add_signature_block(doc)
-    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
+    _add_page_numbers(doc)
 
     buffer = BytesIO()
     doc.save(buffer)

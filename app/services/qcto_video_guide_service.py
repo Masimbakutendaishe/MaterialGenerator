@@ -9,7 +9,7 @@ from urllib.parse import quote_plus
 from app.services.ai_service import generate_qcto_video_guide_content
 from app.services.image_service import fetch_stock_photo
 from app.services.document_service import (
-        _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border, _add_hyperlink,
+    _hex_to_rgb, _build_branded_cover, _add_page_numbers, _add_bottom_border, _add_hyperlink,
     DEFAULT_PRIMARY, DEFAULT_SECONDARY,
 )
 
@@ -22,10 +22,9 @@ def build_qcto_video_guide_docx(title: str, syllabus_content: dict, organization
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
-    qualification_title = syllabus_content.get("qualification_title", "") or title
 
     doc = Document()
-    _build_branded_cover(doc, qualification_title, "KM Video Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
+    _build_branded_cover(doc, title, "Video Resource Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     preface_heading = doc.add_paragraph()
     preface_run = preface_heading.add_run("Preface")
@@ -96,7 +95,7 @@ def build_qcto_video_guide_docx(title: str, syllabus_content: dict, organization
 
         doc.add_page_break()
 
-    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
+    _add_page_numbers(doc)
 
     buffer = BytesIO()
     doc.save(buffer)

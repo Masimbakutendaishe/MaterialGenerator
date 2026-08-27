@@ -12,21 +12,6 @@ DEFAULT_PRIMARY = "1A5276"
 DEFAULT_SECONDARY = "2874A6"
 DEFAULT_ACCENT = "F39C12"
 
-def _element_text(el) -> str:
-    """Returns the display text for a topic/module element, handling both shapes safely:
-    the current {"code": ..., "text": ...} dict shape, and the older plain-string shape
-    still present in syllabi extracted before that change — so existing DB records don't
-    break when rendered or consumed by document builders."""
-    if isinstance(el, dict):
-        return el.get("text", "") or ""
-    return el or ""
-
-
-def _element_code(el):
-    """Returns the element's code if present (dict shape only), else None."""
-    if isinstance(el, dict):
-        return el.get("code")
-    return None
 
 def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
     try:
@@ -469,9 +454,7 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
     return buffer
 
 def _add_page_numbers(doc: Document):
-    """Adds 'Page X of Y' to the footer of every section — a real Word field, not static text.
-    Kept as a standalone function (rather than folded into _add_branded_header_footer) so the
-    many existing callers that only want page numbers keep working unchanged."""
+    """Adds 'Page X of Y' to the footer of every section — a real Word field, not static text."""
     from docx.oxml.ns import qn as _qn
     for section in doc.sections:
         footer = section.footer
@@ -500,151 +483,10 @@ def _add_page_numbers(doc: Document):
         para.add_run(" of ")
         _add_field(para, "NUMPAGES")
 
-
-def _add_watermark(doc: Document, logo_bytes: bytes, width_inches: float = 4.2):
-    """Adds the organization logo as a large, washed-out watermark centered on every page.
-    Uses the legacy VML <w:pict> markup in the header rather than a hand-built DrawingML
-    anchor — this is what Word's own 'Insert Watermark > Picture Watermark' feature actually
-    generates, and renders far more reliably across Word versions than a floating DrawingML
-    picture built from scratch. gain/blacklevel on v:imagedata replicate the washed-out look."""
-    if not logo_bytes:
-        return
-
-    # VML namespaces aren't in python-docx's default prefix map — register them once so
-    # qn("v:...") / qn("o:...") resolve. Safe no-op on repeat calls (setdefault).
-    from docx.oxml.ns import nsmap as _nsmap
-    _nsmap.setdefault("v", "urn:schemas-microsoft-com:vml")
-    _nsmap.setdefault("o", "urn:schemas-microsoft-com:office:office")
-
-    section = doc.sections[0]
-    header = section.header
-    header.is_linked_to_previous = False
-    # Dedicated paragraph for the watermark, separate from the header's logo/qualification-name
-    # paragraph — sharing a paragraph caused both pictures to get the same docPr id, which made
-    # Word silently drop one of them.
-    watermark_para = header.add_paragraph()
-    watermark_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-
-    run = watermark_para.add_run()
-    run.add_picture(BytesIO(logo_bytes), width=Inches(width_inches))
-
-    # add_picture() creates a modern <w:drawing> (DrawingML); pull the relationship id it
-    # just created for the embedded image, then swap the drawing for the legacy VML <w:pict>
-    # watermark markup, reusing that same image relationship.
-    drawing = run._element.find(qn("w:drawing"))
-    blip = drawing.find(f".//{qn('a:blip')}")
-    r_id = blip.get(qn("r:embed"))
-
-    width_pt = int(width_inches * 72)
-
-    pict = OxmlElement("w:pict")
-    shape = OxmlElement("v:shape")
-    shape.set("id", "WatermarkShape")
-    shape.set("type", "#_x0000_t75")
-    shape.set("style", (
-        f"position:absolute;left:0;text-align:left;margin-left:0;margin-top:0;"
-        f"width:{width_pt}pt;height:{width_pt}pt;z-index:-251658240;"
-        f"mso-position-horizontal:center;mso-position-horizontal-relative:margin;"
-        f"mso-position-vertical:center;mso-position-vertical-relative:margin"
-    ))
-    shape.set(qn("o:allowoverlap"), "f")
-
-    imagedata = OxmlElement("v:imagedata")
-    imagedata.set(qn("r:id"), r_id)
-    imagedata.set(qn("o:title"), "")
-    imagedata.set("gain", "19661f")
-    imagedata.set("blacklevel", "22938f")
-
-    shape.append(imagedata)
-    pict.append(shape)
-
-    run._element.remove(drawing)
-    run._element.append(pict)
-
-
-def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualification_name: str = None,
-                                organization_name: str = None, primary_hex: str = None,
-                                watermark: bool = True):
-    """Full branded page treatment applied once, reused across every document type: a small
-    logo + qualification name in the header with a thin rule, 'Organization — Page X of Y' in
-    the footer, and (optionally) the organization logo as a faint watermark behind the text.
-    Superset of _add_page_numbers — call this instead when logo/qualification context is
-    available; falls back gracefully to page-numbers-only if logo_bytes/qualification_name
-    aren't supplied."""
-    section = doc.sections[0]
-    color_hex = (primary_hex or DEFAULT_PRIMARY).lstrip("#").upper()
-
-    # Cover page (page 1) gets none of this — matches the reference material, where the
-    # cover has no footer bar or header logo, only content pages from page 2 onward do.
-    section.different_first_page_header_footer = True
-
-    if logo_bytes or qualification_name:
-        header = section.header
-        header.is_linked_to_previous = False
-        header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
-        header_para.text = ""
-        header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        # Build the header as: [logo]  Qualification Name
-        if logo_bytes:
-            logo_run = header_para.add_run()
-            logo_run.add_picture(BytesIO(logo_bytes), height=Inches(0.45))
-            header_para.add_run("   ")
-        if qualification_name:
-            qual_run = header_para.add_run(qualification_name)
-            qual_run.bold = True
-            qual_run.font.size = Pt(10)
-            qual_run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
-        _add_bottom_border(header_para, color_hex, size="6")
-
-    # Footer: organization name (left) + Page X of Y (right), on one line via tab stops
-    footer = section.footer
-    footer.is_linked_to_previous = False
-    footer_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    footer_para.text = ""
-    from docx.enum.text import WD_TAB_ALIGNMENT
-    footer_para.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_TAB_ALIGNMENT.RIGHT)
-
-    if organization_name:
-        org_run = footer_para.add_run(organization_name)
-        org_run.font.size = Pt(9)
-        org_run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
-
-    footer_para.add_run("\t")
-
-    from docx.oxml.ns import qn as _qn
-
-    def _add_field(paragraph, field_code):
-        run_el = OxmlElement("w:r")
-        fld_begin = OxmlElement("w:fldChar")
-        fld_begin.set(_qn("w:fldCharType"), "begin")
-        instr = OxmlElement("w:instrText")
-        instr.set(_qn("xml:space"), "preserve")
-        instr.text = field_code
-        fld_end = OxmlElement("w:fldChar")
-        fld_end.set(_qn("w:fldCharType"), "end")
-        run_el.append(fld_begin)
-        run_el.append(instr)
-        run_el.append(fld_end)
-        paragraph._p.append(run_el)
-
-    page_label_run = footer_para.add_run("Page ")
-    page_label_run.font.size = Pt(9)
-    _add_field(footer_para, "PAGE")
-    of_run = footer_para.add_run(" of ")
-    of_run.font.size = Pt(9)
-    _add_field(footer_para, "NUMPAGES")
-
-    if watermark and logo_bytes:
-        _add_watermark(doc, logo_bytes)
-
 def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organization_name: str,
-                          logo_bytes: bytes, primary, primary_hex: str, secondary,
-                          accent_hex: str = None, qualification_code: str = None,
-                          nqf_level: str = None, credits: str = None):
+                          logo_bytes: bytes, primary, primary_hex: str, secondary):
     """Shared branded cover page used by every document type: full page border, centered
-    logo, bold title, colored accent rules, and a shaded organization name band.
-    accent_hex/qualification_code/nqf_level/credits are accepted for call-site compatibility
-    with newer callers but not currently used in this (reverted) layout."""
+    logo, bold title, colored accent rules, and a shaded organization name band."""
     _add_page_border(doc.sections[0], primary_hex)
 
     for _ in range(3):

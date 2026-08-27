@@ -1,4 +1,4 @@
-﻿"""Material generation page: pick a syllabus, trigger generation, poll status, download."""
+"""Material generation page: pick a syllabus, trigger generation, poll status, download."""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -32,7 +32,7 @@ def trigger():
     is_qcto_type = material_type.startswith("qcto_")
     is_qcto_syllabus = syllabus.syllabus_type == "qcto"
     if is_qcto_type != is_qcto_syllabus:
-        flash("This document type requires a matching syllabus (occupational qualification documents need an occupational qualification syllabus, and vice versa).")
+        flash("This document type requires a matching syllabus (QCTO documents need a QCTO syllabus, and vice versa).")
         return redirect(url_for("generation_web.index"))
 
     job = GenerationJob(

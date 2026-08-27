@@ -4,7 +4,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_assessment_questions
-from app.services.document_service import _add_branded_header_footer
+from app.services.document_service import _add_page_numbers
 
 DEFAULT_PRIMARY = "1A5276"
 
@@ -80,32 +80,16 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
 
             question_number += 1
 
-        doc.add_page_break()
-
-    heading = doc.add_paragraph()
-    h_run = heading.add_run("Results")
-    h_run.bold = True
-    h_run.font.size = Pt(14)
-    h_run.font.color.rgb = primary
-
-    results_table = doc.add_table(rows=2, cols=2)
-    results_table.style = "Table Grid"
-    results_table.cell(0, 0).text = "Total Marks Available"
-    results_table.cell(0, 1).text = str(total_marks)
-    results_table.cell(1, 0).text = "Marks Achieved"
-    results_table.cell(1, 1).text = ""
-    for row in results_table.rows:
-        row.cells[0].paragraphs[0].runs[0].bold = True
-
-    doc.add_paragraph()
-    doc.add_paragraph("Facilitator Comments:").runs[0].bold = True
-    for _ in range(3):
-        doc.add_paragraph("_" * 90)
+    doc.add_page_break()
+    total_para = doc.add_paragraph()
+    total_run = total_para.add_run(f"Total Marks: {total_marks}")
+    total_run.bold = True
+    total_run.font.size = Pt(13)
 
     from app.services.document_service import _add_signature_block
     _add_signature_block(doc)
 
-    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
+    _add_page_numbers(doc)
 
     buffer = BytesIO()
     doc.save(buffer)

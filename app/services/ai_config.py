@@ -5,8 +5,6 @@ retries, the next in the chain is tried automatically."""
 
 DEFAULT_CHAIN = [
     {"provider": "nyra", "model": "agnes-2.0-flash"},
-    {"provider": "nyra", "model": "minimax-m3-free"},
-    {"provider": "nyra", "model": "tencent-hy3-free"},
     {"provider": "gemini", "model": "gemini-flash-latest"},
     {"provider": "groq", "model": "openai/gpt-oss-120b"},
     {"provider": "anthropic", "model": "claude-sonnet-5"},

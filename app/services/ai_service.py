@@ -329,12 +329,7 @@ no asterisks, no markdown headers.
 
 NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "1) X 2) Y 3) Z" or
 "firstly... secondly..."). Whenever you have 3 or more related items, use a "list" block instead —
-set "ordered": true for sequential steps, "ordered": false for unordered items.
-
-CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
-for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
-or a term in quotes, use single quotes instead (e.g. the supervisor said 'stop the line', not the
-supervisor said "stop the line")."""
+set "ordered": true for sequential steps, "ordered": false for unordered items."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=8192, job_id=job_id)
@@ -577,12 +572,7 @@ Only the FIRST section needs an info_box scope block. Every section needs at lea
 
 NEVER write a numbered or bulleted list inline inside a paragraph's text (e.g. "1) X 2) Y 3) Z" or
 "firstly... secondly..."). Whenever you have 3 or more related items, use a "list" block instead —
-set "ordered": true for sequential steps, "ordered": false for unordered items.
-
-CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
-for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
-or a term in quotes, use single quotes instead (e.g. the supervisor said 'stop the line', not the
-supervisor said "stop the line")."""
+set "ordered": true for sequential steps, "ordered": false for unordered items."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=5000, job_id=job_id)
@@ -761,21 +751,11 @@ def generate_qcto_knowledge_module_content(module: dict, job_id: str = None) -> 
             "topics": [],
         }
 
-    def _topic_line(t):
-        lines = [f"- {t.get('topic_code', '')}: {t.get('title', '')} (weight: {t.get('weight', 'n/a')})"]
-        elements = t.get("elements") or []
-        if elements:
-            lines.append("  This topic's specific elements, ALL of which must be genuinely covered:")
-            for el in elements:
-                code = el.get("code") if isinstance(el, dict) else None
-                text = el.get("text", "") if isinstance(el, dict) else (el or "")
-                prefix = f"  - {code}: " if code else "  - "
-                lines.append(f"{prefix}{text}")
-        if t.get("guidelines"):
-            lines.append(f"  Guidelines on what to cover: {t.get('guidelines')}")
-        return "\n".join(lines)
-
-    topics_text = "\n".join(_topic_line(t) for t in module.get("topics", []))
+    topics_text = "\n".join(
+        f"- {t.get('topic_code', '')}: {t.get('title', '')} (weight: {t.get('weight', 'n/a')})"
+        + (f"\n  Guidelines on what to cover: {t.get('guidelines')}" if t.get("guidelines") else "")
+        for t in module.get("topics", [])
+    )
 
     prompt = f"""You are writing a Knowledge Module for a South African QCTO-accredited
 occupational qualification, in the style of real accredited training material — detailed,
@@ -793,13 +773,10 @@ Write:
 1. A short module introduction (2-3 sentences on why this module matters occupationally)
 2. A short module purpose statement (1-2 sentences)
 3. For EACH Knowledge Topic listed above, write genuinely detailed, specific content — real
-   depth, not a shallow gloss. Where a topic lists specific elements above, EVERY SINGLE
-   element must be genuinely addressed somewhere in that topic's content — do not omit, skip,
-   or silently merge away any element, even if the topic has many. Where a topic has
-   "Guidelines on what to cover" listed above, your content MUST genuinely address everything
-   those guidelines specify — treat them as a real requirement, not optional context. Include
-   an "example_tip" block for each topic: a realistic workplace example paired with a
-   practical, actionable tip.
+   depth, not a shallow gloss. Where a topic has "Guidelines on what to cover" listed above,
+   your content MUST genuinely address everything those guidelines specify — treat them as a
+   real requirement, not optional context. Include a "example_tip" block for each topic: a
+   realistic workplace example paired with a practical, actionable tip.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -843,12 +820,7 @@ or formula blocks only where genuinely relevant to that specific topic."""
 def structure_qcto_syllabus_from_text(raw_text: str) -> dict:
     """Parses raw text extracted from an uploaded QCTO curriculum document into the
     structured modules format (KM/PM/WM with codes, credits, topics, elements, IACs)."""
-    # 150,000 chars comfortably fits every provider in the chain (Gemini Flash, Groq's
-    # 120B, Claude Sonnet 5 all support far more) and is large enough to reach the TOC/
-    # module-summary section of real multi-module qualification documents — the previous
-    # 40,000-char limit was cutting curricula off after roughly one module's worth of text,
-    # which is why only KM-01/PM-01 were ever extracted from full qualification uploads.
-    truncated_text = raw_text[:150000]
+    truncated_text = raw_text[:40000]
 
     prompt = f"""You are an instructional designer. Below is raw text extracted from an uploaded
 South African QCTO curriculum document. Extract and structure its Knowledge Modules (KM),
@@ -890,7 +862,7 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
           "topic_code": "<topic code, e.g. KM-01-KT02>",
           "title": "<topic title>",
           "weight": "<weight percentage if given, else null>",
-          "elements": [{{"code": "<element code, e.g. KT0101 — the SHORT code as printed, without repeating the topic code prefix>", "text": "<the full element text>"}}],
+          "elements": ["<topic element 1>", "<topic element 2>"],
           "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
         }}
       ]
@@ -901,7 +873,7 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
       "title": "<module title>",
       "nqf_level": "<NQF level>",
       "credits": <credits as a number>,
-      "performance_assessment": [{{"code": "<PA code, e.g. PA0101 — the SHORT code as printed>", "text": "<the full element text>"}}],
+      "performance_assessment": ["<PA element 1>", "<PA element 2>"],
       "applied_knowledge": ["<AK element 1>", "<AK element 2>"],
       "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
     }},
@@ -922,7 +894,7 @@ the original codes, titles, and wording as closely as possible. If credits/NQF l
 specific module isn't stated near it, infer from context or use the qualification-level value."""
 
     for attempt in range(2):
-        raw_response = _call_model("syllabus_structuring", prompt, max_tokens=24000)
+        raw_response = _call_model("syllabus_structuring", prompt, max_tokens=16000)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
@@ -933,7 +905,7 @@ specific module isn't stated near it, infer from context or use the qualificatio
                     raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
                 continue
 
-def _extract_relevant_window(raw_text: str, module_code: str, module_title: str = "", window_size: int = 60000) -> str:
+def _extract_relevant_window(raw_text: str, module_code: str, module_title: str = "", window_size: int = 30000) -> str:
     """Finds the section of the document most likely to contain a module's real detail,
     trying several signals in order since curriculum documents vary in format:
     1. The LAST occurrence of the module's exact code (detail sections usually come after
@@ -963,42 +935,11 @@ def extract_qcto_module_topics(module_code: str, module_title: str, raw_text: st
     prompt = f"""Below is the full text of a South African QCTO curriculum document. Find the
 section specifically covering this module, and extract its detailed topic breakdown.
 
-IMPORTANT — for each topic element: these are usually printed with their own short code,
-distinct from the parent topic code — e.g. under topic "KM-01-KT01", each element carries a
-code like "KT0101", "KT0102", etc. (the numbering resets per topic and does NOT repeat the
-full topic code). This can appear as a bulleted/numbered list ("KT0101 The role of the
-advanced emergency first aider...") or as a TABLE with columns like "TOPIC ELEMENT CODE" and
-"TOPIC ELEMENT TITLE" (in which case the code and text may be in separate cells/lines with no
-bullet character). Capture both the code and the full text for every element — if a genuine
-per-element code truly isn't present in the source for a given element, leave "code" as null
-rather than inventing one, but the "text" must still be captured.
-
 IMPORTANT — beyond the topic elements themselves, carefully check the text UNDERNEATH each
 topic/element for any guideline, explanatory, or "what to cover" text — this is often a
 paragraph or short section explaining what the topic should include, separate from the bare
 element list. Capture this as "guidelines" per topic if present. Do not skip this even if it
 appears in a different format (a paragraph, a bulleted note, a "Guidelines for..." heading).
-
-IMPORTANT — for assessment_criteria: search specifically for a section headed "Internal
-Assessment Criteria" (this is the standard QCTO term, sometimes just called IAC), appearing
-after each topic's element list. This section can appear in TWO different formats depending
-on the source document — check for BOTH:
-1. A bulleted list, often prefixed with a code like "IAC0201", e.g.: "IAC0201 Define and
-   describe the concepts which underpin work, working and working relationships".
-2. A TABLE with columns such as "IAC CODE" and "IAC DESCRIPTION" (sometimes also "% OF TIME
-   TO BE SPENT"), where each row is one criterion — e.g. a row with "IAC0101" in one column
-   and "Explain the role of the advanced emergency first aider..." in the next. When text is
-   extracted from a table, the code and description may appear on the same line or on
-   separate lines/paragraphs without any bullet character — do not assume a bullet symbol is
-   required for this to be a real IAC entry.
-Extract each criterion (whichever format it's in) as its own entry in assessment_criteria
-(you may drop the leading IAC code, keeping just the criterion text, or keep it — either is
-fine as long as the real wording is preserved). This is a distinct section from the topic's
-"elements" list — do not confuse the two, and do not skip searching for it even if it isn't
-immediately adjacent to the elements, or if it's several paragraphs/pages later in the
-document. Only return an empty assessment_criteria array if you have genuinely searched the
-ENTIRE section for this topic and this content truly isn't present — do not give up after a
-quick scan, and do not stop searching just because the topic has many elements.
 
 Module Code: {module_code}
 Module Title: {module_title}
@@ -1015,7 +956,7 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
       "topic_code": "<topic code, e.g. KM-01-KT02>",
       "title": "<topic title>",
       "weight": "<weight percentage if given, else null>",
-      "elements": [{{"code": "<element code, e.g. KT0101 — the SHORT code as printed, without repeating the topic code prefix>", "text": "<the full element text>"}}],
+      "elements": ["<topic element 1>", "<topic element 2>"],
       "guidelines": "<any explanatory/guideline text found underneath this topic, describing what should be covered — or null if none found>",
       "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
     }}
@@ -1023,7 +964,7 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 }}
 If you cannot find this module's detailed topic breakdown in the text, return {{"topics": []}}.
 Do not invent topics or guidelines that aren't genuinely present in the text."""
-    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=8000)
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=4000)
     try:
         result = json.loads(raw_response)
     except json.JSONDecodeError:
@@ -1032,6 +973,7 @@ Do not invent topics or guidelines that aren't genuinely present in the text."""
         except json.JSONDecodeError:
             return []
     return result.get("topics", [])
+
 
 def extract_qcto_pm_details(module_code: str, module_title: str, raw_text: str) -> dict:
     """Extracts detailed performance assessment, applied knowledge, and assessment criteria
@@ -1048,36 +990,6 @@ text — this is often a paragraph or short section explaining what should actua
 assessed, separate from the bare element list. Capture this as "guidelines" if present, even
 if it appears in a different format (a paragraph, a bulleted note, a "Guidelines for..." heading).
 
-IMPORTANT — for performance_assessment: these are usually printed with their own short
-code, e.g. "PA0101 Assess and manage an emergency scene..." — often under a heading like
-"PRACTICAL SKILL ACTIVITY ELEMENT CODES" or similar, possibly as a table with the code and
-text in separate columns/lines with no bullet character. Capture both the code and the full
-text for every item — if a genuine code truly isn't present for a given item, leave "code"
-as null rather than inventing one, but the "text" must still be captured.
-
-IMPORTANT — for assessment_criteria: search specifically for a section headed "Internal
-Assessment Criteria" (the standard QCTO term, sometimes just called IAC), appearing after
-the performance assessment elements. This section can appear in TWO different formats
-
-IMPORTANT — for assessment_criteria: search specifically for a section headed "Internal
-Assessment Criteria" (the standard QCTO term, sometimes just called IAC), appearing after
-the performance assessment elements. This section can appear in TWO different formats
-depending on the source document — check for BOTH:
-1. A bulleted list, often prefixed with a code like "IAC0101", e.g.: "IAC0101 The reasons
-   for the project reflect the desired outcomes of the project".
-2. A TABLE with columns such as "IAC CODE" and "IAC DESCRIPTION", where each row is one
-   criterion. When text is extracted from a table, the code and description may appear on
-   the same line or on separate lines/paragraphs without any bullet character — do not
-   assume a bullet symbol is required for this to be a real IAC entry.
-Extract each criterion (whichever format it's in) as its own entry in assessment_criteria
-(you may drop the leading IAC code, keeping just the criterion text, or keep it — either is
-fine as long as the real wording is preserved). This is a distinct section from the
-performance assessment/applied knowledge elements above it — do not confuse the two, and do
-not skip searching for it even if it isn't immediately adjacent, or if it's several
-paragraphs/pages later. Only return an empty assessment_criteria array if you have genuinely
-searched the ENTIRE section for this module and this content truly isn't present — do not
-give up after a quick scan.
-
 Module Code: {module_code}
 Module Title: {module_title}
 
@@ -1088,7 +1000,7 @@ Full curriculum text:
 
 Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 {{
-  "performance_assessment": [{{"code": "<PA code, e.g. PA0101 — the SHORT code as printed>", "text": "<the full element text>"}}],
+  "performance_assessment": ["<PA element 1>", "<PA element 2>"],
   "applied_knowledge": ["<AK element 1>", "<AK element 2>"],
   "guidelines": "<any explanatory/guideline text found underneath these elements — or null if none found>",
   "assessment_criteria": ["<IAC 1>", "<IAC 2>"]
@@ -1097,7 +1009,7 @@ Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 If you cannot find this module's detail in the text, return empty arrays for each field and null for guidelines.
 Do not invent content that isn't genuinely present in the text."""
 
-    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=6000)
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000)
     try:
         return json.loads(raw_response)
     except json.JSONDecodeError:
@@ -1140,7 +1052,7 @@ If you cannot find this module's detail in the text, return an empty string for 
 empty array for work_experience_elements, and null for guidelines. Do not invent content that
 isn't genuinely present."""
 
-    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=6000)
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=4000)
     try:
         return json.loads(raw_response)
     except json.JSONDecodeError:
@@ -1161,10 +1073,7 @@ def generate_qcto_practical_module_content(module: dict, job_id: str = None) -> 
             "units": [],
         }
 
-    pa_text = "\n".join(
-        f"- {(pa.get('code') + ': ') if isinstance(pa, dict) and pa.get('code') else ''}{pa.get('text', '') if isinstance(pa, dict) else pa}"
-        for pa in module.get("performance_assessment", [])
-    )
+    pa_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", []))
     guidelines_text = module.get("guidelines")
 
     prompt = f"""You are writing a Practical Skills Module for a South African QCTO-accredited
@@ -1183,17 +1092,11 @@ This module's Performance Assessment elements:
 IMPORTANT — where guidelines are provided above, your content MUST genuinely address everything
 they specify — treat them as a real requirement, not optional context.
 
-IMPORTANT — every single Performance Assessment element listed above MUST be genuinely covered
-within one of the units below. Do not omit, skip, silently merge away, or generically summarize
-past any element — each one needs real, specific coverage somewhere in the units you produce.
-Use as many units as needed to cover all of them properly (typically 2-4 for a short list, more
-if there are many distinct elements) — completeness comes before brevity.
-
 Write:
 1. A module introduction (2-3 sentences)
 2. A module purpose statement (1-2 sentences)
-3. Group the Performance Assessment elements into logical "units" (practical skill units),
-   covering every element listed above. For EACH unit, write:
+3. Group the Performance Assessment elements into 2-4 logical "units" (practical skill units).
+   For EACH unit, write:
    - A short "Scope of Practical Skill" framing statement
    - Genuinely detailed, specific content covering the PA elements in that unit
    - One example_tip block
@@ -1226,10 +1129,7 @@ image block where a real photo would meaningfully illustrate a concrete tool/equ
 Use table blocks only where genuinely relevant."""
 
     for attempt in range(2):
-        # Higher budget than KM's equivalent call — PM units are no longer capped at 2-4,
-        # so a module with many performance-assessment elements can legitimately need more
-        # units/output to cover all of them without truncating mid-JSON.
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=12000, job_id=job_id)
+        raw_response = _call_model("textbook_writing", prompt, max_tokens=8000, job_id=job_id)
         try:
             return json.loads(raw_response)
         except json.JSONDecodeError:
@@ -1329,7 +1229,7 @@ def generate_qcto_video_guide_content(module: dict, job_id: str = None) -> dict:
     if module.get("module_type") == "KM":
         items_text = "\n".join(f"- {t.get('title', '')}" for t in module.get("topics", []))
     elif module.get("module_type") == "PM":
-        items_text = "\n".join(f"- {pa.get('text', '') if isinstance(pa, dict) else pa}" for pa in module.get("performance_assessment", []))
+        items_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", [])[:6])
     elif module.get("module_type") == "WM":
         items_text = "\n".join(f"- {we}" for we in module.get("work_experience_elements", [])[:6])
 
@@ -1388,16 +1288,12 @@ def generate_qcto_assessment_content(module: dict, job_id: str = None) -> dict:
             "(e.g. SECTION A, SECTION B), each covering a related cluster of topics."
         )
     else:  # PM
-        items_text = "\n".join(f"- {pa.get('text', '') if isinstance(pa, dict) else pa}" for pa in module.get("performance_assessment", []))
+        items_text = "\n".join(f"- {pa}" for pa in module.get("performance_assessment", []))
         question_style = (
-            "Write practical questions grounded in ONE detailed, specific, realistic South African "
-            "workplace scenario — use real South African place names, industries, and workplace "
-            "conditions appropriate to this module's subject matter (not generic \"your workplace\" "
-            "placeholders). Set up the scenario once, then ask the learner to explain or describe how "
-            "they would carry out each task within that specific scenario, referencing realistic "
-            "equipment and situations. Group questions into 2-3 labeled sections covering related PA "
-            "elements. Each question needs generous blank answer space, since these require fuller "
-            "written responses."
+            "Write practical, scenario-grounded questions that ask the learner to explain or "
+            "describe how they would carry out a task, referencing realistic equipment/situations. "
+            "Group questions into 2-3 labeled sections covering related PA elements. Each question "
+            "needs generous blank answer space, since these require fuller written responses."
         )
 
     prompt = f"""You are writing an assessment for a South African QCTO-accredited occupational
@@ -1418,17 +1314,15 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
     {{
       "section_label": "SECTION A: <short section theme>",
       "questions": [
-        {{"question_text": "<question, may include a calculation if genuinely relevant>", "blank_lines": 3, "marks": 5}}
+        {{"question_text": "<question, may include a calculation if genuinely relevant>", "blank_lines": 3}}
       ]
     }}
   ]
 }}
 
 Write 4-6 questions per section, 2-3 sections total. blank_lines should reflect how much space
-a genuine written answer would need (2-6 lines). Assign a realistic mark value to each
-question based on its complexity (a short factual question might be worth 2-3 marks, a
-fuller explanation 5-8 marks). Never invent specific standard numbers or regulatory
-citations you are not confident are real."""
+a genuine written answer would need (2-6 lines). Never invent specific standard numbers or
+regulatory citations you are not confident are real."""
 
     for attempt in range(2):
         raw_response = _call_model("textbook_writing", prompt, max_tokens=4000, job_id=job_id)
@@ -1466,423 +1360,3 @@ Return ONLY the title text itself, nothing else — no quotes, no markdown, no e
         return cleaned if cleaned else "Untitled Syllabus"
     except Exception:
         return "Untitled Syllabus"
-
-
-def reason_isa_traceability(km_modules: list, pm_modules: list, wm_modules: list, job_id: str = None) -> dict:
-    """Reasons about genuine competency links between each KM topic's real Internal
-    Assessment Criteria and PM/WM modules' real activities — a semantic judgement, not
-    keyword/title matching. Returns {topic_code: {"pm": [...], "wm": [...], "reasoning":
-    "..."}}, defaulting any topic the model omits to no links (an honest default, not a
-    crash). Raises on failure so the caller can fall back to a simpler heuristic."""
-    km_lines = []
-    for module in km_modules:
-        for topic in module.get("topics", []):
-            iac = topic.get("assessment_criteria") or []
-            iac_text = "; ".join(iac) if iac else "(none extracted)"
-            km_lines.append(f"- {topic.get('topic_code', '')}: {topic.get('title', '')} | IAC: {iac_text}")
-
-    pm_lines = []
-    for module in pm_modules:
-        pa = module.get("performance_assessment") or []
-        pa_texts = [p.get("text", "") if isinstance(p, dict) else p for p in pa]
-        pa_text = "; ".join(t for t in pa_texts if t) if pa_texts else "(none extracted)"
-        pm_lines.append(f"- {module.get('module_code', '')}: {module.get('title', '')} | Activities: {pa_text}")
-
-    wm_lines = []
-    for module in wm_modules:
-        we = module.get("work_experience_elements") or []
-        we_text = "; ".join(we) if we else "(none extracted)"
-        wm_lines.append(f"- {module.get('module_code', '')}: {module.get('title', '')} | Activities: {we_text}")
-
-    prompt = f"""You are analysing a QCTO occupational qualification to build a traceability table
-linking Knowledge Module (KM) topics to related Practical Module (PM) and Workplace Module (WM)
-content, based on genuine competency overlap — not just similar wording.
-
-KM Topics (with their Internal Assessment Criteria):
-{chr(10).join(km_lines)}
-
-Practical Modules (with their real activities):
-{chr(10).join(pm_lines)}
-
-Workplace Modules (with their real activities):
-{chr(10).join(wm_lines)}
-
-For EACH KM topic, decide which PM module(s) and WM module(s), if any, contain practical or
-workplace activity that would genuinely help demonstrate or reinforce the same underlying
-competency as that KM topic's Internal Assessment Criteria. Do NOT force a link — many KM topics
-will have zero linked PM/WM modules, and that is the correct, honest answer for them. Only link
-where the actual skill or knowledge area substantively overlaps.
-
-Return ONLY valid JSON in this exact format, one entry per KM topic:
-{{
-  "links": [
-    {{"km_topic_code": "...", "linked_pm_codes": ["..."], "linked_wm_codes": ["..."], "reasoning": "one short sentence"}}
-  ]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("syllabus_structuring", prompt, max_tokens=6000, job_id=job_id)
-        try:
-            data = json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                data = json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue
-
-        lookup = {}
-        for entry in data.get("links", []):
-            code = entry.get("km_topic_code", "")
-            lookup[code] = {
-                "pm": entry.get("linked_pm_codes", []),
-                "wm": entry.get("linked_wm_codes", []),
-                "reasoning": entry.get("reasoning", ""),
-            }
-        # Ensure every real topic has an entry, even if the AI omitted it
-        for module in km_modules:
-            for topic in module.get("topics", []):
-                code = topic.get("topic_code", "")
-                if code not in lookup:
-                    lookup[code] = {"pm": [], "wm": [], "reasoning": ""}
-        return lookup
-
-
-def generate_km_exam_objective_questions(km_modules: list, job_id: str = None) -> dict:
-    """Generates the objective-format exam sections (Multiple Choice, Matching Columns,
-    True/False) from real KM topic/element content — these formats need genuine authored
-    content (plausible distractors, real matching pairs, a true/false mix), not something
-    that can be deterministically templated from raw extracted text. Targets roughly 10 MC
-    questions, 5 matching pairs, and 10 true/false statements, matching a typical accredited
-    exam's mark weighting for these sections (20/10/20 marks at 2 marks each)."""
-    km_lines = []
-    for module in km_modules:
-        km_lines.append(f"Module {module.get('module_code', '')}: {module.get('title', '')}")
-        for topic in module.get("topics", []):
-            raw_elements = topic.get("elements") or []
-            element_texts = [el.get("text", "") if isinstance(el, dict) else (el or "") for el in raw_elements]
-            elements_text = "; ".join(t for t in element_texts if t) if element_texts else "(no elements extracted)"
-            km_lines.append(f"  - {topic.get('topic_code', '')}: {topic.get('title', '')} | Elements: {elements_text}")
-
-    prompt = f"""Below is the real Knowledge Module structure of a QCTO occupational qualification.
-
-{chr(10).join(km_lines)}
-
-Using ONLY the real content above, generate three objective-format exam sections for a
-Knowledge Module exam paper:
-
-1. MULTIPLE CHOICE — 10 questions. Each question tests understanding of a real topic or
-   element listed above. Provide 5 answer options (A-E), exactly one correct. Distractors
-   should be plausible, not obviously wrong.
-
-2. MATCHING COLUMNS — 5 pairs. Each pair matches a real term/concept from the content above
-   with its correct description (also drawn from or consistent with the content above).
-
-3. TRUE OR FALSE — 10 statements. Mix genuinely true statements (drawn directly from the
-   content) with genuinely false ones (a plausible-sounding but incorrect claim about the
-   same content) — roughly half and half, not obviously skewed to one side.
-
-Return ONLY valid JSON in this exact format:
-{{
-  "multiple_choice": [
-    {{"stem": "...", "options": {{"A": "...", "B": "...", "C": "...", "D": "...", "E": "..."}}, "correct": "B"}}
-  ],
-  "matching_columns": [
-    {{"term": "...", "description": "..."}}
-  ],
-  "true_false": [
-    {{"statement": "...", "is_true": true}}
-  ]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("syllabus_structuring", prompt, max_tokens=8000, job_id=job_id)
-        try:
-            return json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue
-
-
-
-def generate_model_answers_for_questions(module: dict, assessment_content: dict, job_id: str = None) -> dict:
-    """Writes a Marking Memorandum for the REAL formative assessment questions already
-    generated for this module (via generate_qcto_assessment_content) — does NOT invent new
-    questions, only produces model answers/marks for the exact questions given, so the
-    Facilitator Guide's Marking Memorandum genuinely corresponds to what the learner sees in
-    the actual Formative Assessment document, rather than a disconnected parallel set."""
-    module_title = module.get("title", "")
-    module_code = module.get("module_code", "")
-
-    questions_lines = []
-    for section in assessment_content.get("sections", []):
-        questions_lines.append(f"Section: {section.get('section_label', '')}")
-        for q in section.get("questions", []):
-            questions_lines.append(f"  - {q.get('question_text', '')}")
-    questions_text = "\n".join(questions_lines)
-
-    prompt = f"""You are writing a Marking Memorandum for an assessor, for the REAL formative
-assessment questions below — these are the EXACT questions the learner will actually answer.
-Do NOT invent new questions or alter the wording of the ones given.
-
-Module: {module_title} ({module_code})
-
-The real assessment questions, organized by section:
-{questions_text}
-
-For EACH question above, write a model answer as the assessor would expect it — broken into
-distinct scoreable points (each point is something a learner could state to earn a mark), and
-assign a total mark value based on how many scoreable points it has. Preserve the exact
-question text and section structure given above.
-
-Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
-{{
-  "sections": [
-    {{
-      "section_label": "<matching section label from above, verbatim>",
-      "questions": [
-        {{
-          "question_text": "<matching question text from above, verbatim>",
-          "marks": 5,
-          "model_answer_points": ["<scoreable point 1>", "<scoreable point 2>"]
-        }}
-      ]
-    }}
-  ],
-  "evaluation_criteria": ["<short yes/no checklist item an assessor uses, e.g. 'Was the learner able to explain X?'>"]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=5000, job_id=job_id)
-        try:
-            return json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue
-
-
-
-def generate_km_formative_questions(topic: dict, job_id: str = None) -> dict:
-    """Writes a genuine, marked, format-varied set of formative assessment questions for
-    one KM topic — grounded in and covering EVERY real Internal Assessment Criterion for
-    that topic, mixing open-response, diagram, and multiple-choice formats appropriately
-    per criterion, rather than reprinting the criteria as bare bullet points."""
-    topic_code = topic.get("topic_code", "")
-    title = topic.get("title", "")
-    criteria = topic.get("assessment_criteria") or []
-    criteria_text = "\n".join(f"- {c}" for c in criteria)
-
-    prompt = f"""You are writing formative assessment class activity questions for a South African
-QCTO-accredited Knowledge Module topic, to be handwritten by the learner during training.
-
-Topic: {topic_code} — {title}
-
-This topic's real Internal Assessment Criteria, which your questions MUST genuinely and
-completely cover — every single one must be addressed by at least one question, do not skip
-or silently merge any away:
-{criteria_text}
-
-Write a set of questions that together cover all the criteria above, MIXING question formats
-appropriately — some open-response (an explanation the learner writes by hand), some diagram
-(where a criterion involves anatomy, structure, or a process better shown as a labeled
-drawing), and some multiple choice (for more factual/classification-style criteria) — choose
-whichever format best fits each specific criterion, don't force one format on everything.
-Assign a reasonable mark value to each question based on its complexity.
-
-Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
-{{
-  "questions": [
-    {{"type": "open", "question_text": "...", "marks": 5, "blank_lines": 4, "source_criterion": "<which criterion above this addresses>"}},
-    {{"type": "diagram", "question_text": "...", "marks": 5, "blank_lines": 6, "source_criterion": "..."}},
-    {{"type": "multiple_choice", "question_text": "...", "marks": 2, "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, "correct": "B", "source_criterion": "..."}}
-  ]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=4000, job_id=job_id)
-        try:
-            return json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue
-
-
-
-def generate_pm_facilitation_steps(module: dict, job_id: str = None) -> dict:
-    """Writes genuine, specific step-by-step facilitator instructions for EVERY real
-    performance-assessment item in this module — how to actually demonstrate the skill,
-    what to coach for during guided practice, signs the learner is ready for independent
-    practice, and debrief questions to ask — enough real guidance for a first-time
-    facilitator to run the session confidently, not a template phrase with the item text
-    substituted in."""
-    pa_items = module.get("performance_assessment") or []
-    pa_lines = []
-    for pa in pa_items:
-        code = pa.get("code") if isinstance(pa, dict) else None
-        text = pa.get("text", "") if isinstance(pa, dict) else (pa or "")
-        pa_lines.append(f"- {code + ': ' if code else ''}{text}")
-    pa_text = "\n".join(pa_lines)
-
-    prompt = f"""You are writing a facilitator guide for a completely inexperienced, first-time
-facilitator who has never taught this practical skill before — they need real, specific,
-actionable instructions, not vague activity labels.
-
-Module: {module.get('title', '')}
-
-Every real practical skill this facilitator must teach — EVERY ONE below needs its own
-guidance, do not skip or merge any away:
-{pa_text}
-
-For EACH skill above, write:
-1. demonstration_steps — a numbered sequence of exactly what the facilitator physically does
-   and says while demonstrating this skill to the group, specific enough that someone who has
-   never taught before could follow it directly.
-2. coaching_tips — specific things to watch for and correct while learners attempt the skill
-   under supervision (common mistakes, safety points, technique cues).
-3. readiness_signs — concrete, observable signs that a learner is ready to move from guided to
-   independent practice on this specific skill.
-4. debrief_questions — 2-3 specific discussion questions tied to this exact skill, not generic
-   ("what went well") — questions that surface real understanding or gaps.
-
-Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
-{{
-  "items": [
-    {{
-      "pa_text": "<matching skill text from above, verbatim>",
-      "demonstration_steps": ["Step 1...", "Step 2..."],
-      "coaching_tips": ["Watch for...", "Correct..."],
-      "readiness_signs": ["Learner can...", "Learner consistently..."],
-      "debrief_questions": ["Specific question 1?", "Specific question 2?"]
-    }}
-  ]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=8000, job_id=job_id)
-        try:
-            return json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue
-
-
-
-def generate_pm_scenario_and_questions(module: dict, job_id: str = None) -> dict:
-    """Writes ONE detailed, specific South African-contextualized workplace scenario for a
-    PM module's Portfolio of Evidence practical activities, plus a genuine series of
-    scenario-embedded questions per real skill — rather than a generic "your organisation"
-    placeholder scenario and bare "perform a demonstration of X" instructions."""
-    module_title = module.get("title", "")
-    pa_items = module.get("performance_assessment") or []
-    pa_lines = []
-    for pa in pa_items:
-        code = pa.get("code") if isinstance(pa, dict) else None
-        text = pa.get("text", "") if isinstance(pa, dict) else (pa or "")
-        pa_lines.append(f"- {code + ': ' if code else ''}{text}")
-    pa_text = "\n".join(pa_lines)
-
-    prompt = f"""You are writing a Portfolio of Evidence practical assessment scenario for a South
-African QCTO-accredited practical module.
-
-Module: {module_title}
-
-Every real practical skill this assessment must cover through the scenario below — EVERY
-ONE needs its own set of questions, do not skip or merge any away:
-{pa_text}
-
-Write ONE detailed, specific, realistic South African workplace scenario — use real South
-African place names, industries, and workplace conditions appropriate to this module's
-subject matter (not a generic "your organisation" placeholder). The scenario should be
-concrete enough that a learner can picture the exact situation, people involved, and setting.
-
-Then, for EACH real practical skill listed above, write 2-3 specific questions that are
-embedded in and reference the scenario — not generic "perform a demonstration of X"
-instructions, but real questions that test the learner's understanding and application of
-that specific skill within the scenario's context.
-
-Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
-{{
-  "scenario": "The full scenario text, with real South African specificity.",
-  "items": [
-    {{
-      "pa_text": "<matching skill text from above, verbatim>",
-      "questions": ["Scenario-embedded question 1?", "Scenario-embedded question 2?"]
-    }}
-  ]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=6000, job_id=job_id)
-        try:
-            return json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue
-
-
-
-def generate_km_short_answer_questions(topic: dict, job_id: str = None) -> dict:
-    """Writes 1-3 genuine, well-phrased short-answer exam questions for one KM topic,
-    consolidating multiple related Internal Assessment Criteria into comprehensive
-    questions where sensible — rather than reprinting each individual criterion as its own
-    bare 'question,' which produces an impractically long exam for topics with many
-    criteria."""
-    topic_code = topic.get("topic_code", "")
-    title = topic.get("title", "")
-    criteria = topic.get("assessment_criteria") or []
-    criteria_text = "\n".join(f"- {c}" for c in criteria)
-
-    prompt = f"""You are writing short-answer exam questions for a South African QCTO-accredited
-Knowledge Module topic.
-
-Topic: {topic_code} — {title}
-
-This topic's real Internal Assessment Criteria, which your questions must together cover:
-{criteria_text}
-
-Write 1 to 3 genuine, well-phrased exam questions (NOT the criteria reprinted verbatim as
-questions) that together require the learner to demonstrate understanding of everything
-listed above. Consolidate related criteria into single, comprehensive questions where
-sensible, rather than writing one question per individual criterion — this must read like a
-real exam, not a checklist. Assign a realistic mark value to each question reflecting how
-much of the topic it covers.
-
-Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
-{{
-  "questions": [
-    {{"question_text": "A genuine, well-phrased exam question.", "marks": 8, "blank_lines": 5}}
-  ]
-}}"""
-
-    for attempt in range(2):
-        raw_response = _call_model("textbook_writing", prompt, max_tokens=2000, job_id=job_id)
-        try:
-            return json.loads(raw_response)
-        except json.JSONDecodeError:
-            try:
-                return json.loads(_repair_json_string(raw_response))
-            except json.JSONDecodeError as exc:
-                if attempt == 1:
-                    raise RuntimeError(f"AI response was not valid JSON after retry: {exc}") from exc
-                continue

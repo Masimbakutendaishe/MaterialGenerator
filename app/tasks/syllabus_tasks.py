@@ -19,13 +19,6 @@ def process_qcto_syllabus_task(syllabus_id: str, raw_text: str):
         content = structure_qcto_syllabus_from_text(raw_text)
 
         for module in content.get("modules", []):
-            db.session.expire_all()
-            fresh = Syllabus.query.get(syllabus_id)
-            if fresh is None or fresh.status == "cancelled":
-                # Cancellation was requested — stop processing further modules and leave
-                # the status as "cancelled" rather than overwriting it with "draft"/"failed".
-                return
-
             if module.get("module_type") == "KM" and not module.get("topics"):
                 module["topics"] = extract_qcto_module_topics(
                     module.get("module_code", ""), module.get("title", ""), raw_text
@@ -43,11 +36,6 @@ def process_qcto_syllabus_task(syllabus_id: str, raw_text: str):
                 )
                 module["purpose"] = wm_detail.get("purpose") or module.get("purpose", "")
                 module["work_experience_elements"] = wm_detail.get("work_experience_elements", [])
-
-                db.session.expire_all()
-        fresh = Syllabus.query.get(syllabus_id)
-        if fresh is not None and fresh.status == "cancelled":
-            return
 
         syllabus.content = content
         syllabus.accreditation_info = {
