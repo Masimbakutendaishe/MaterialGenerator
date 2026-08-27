@@ -20,6 +20,20 @@ from app.services.qcto_workplace_module_service import build_qcto_workplace_modu
 from app.services.qcto_workplace_logbook_service import build_qcto_workplace_logbook_docx_adapter
 from app.services.qcto_video_guide_service import build_qcto_video_guide_docx_adapter
 from app.services.qcto_assessment_service import build_qcto_km_assessment_docx_adapter, build_qcto_pm_assessment_docx_adapter
+from app.services.qcto_km_facilitator_guide_service import build_qcto_km_facilitator_guide_docx_adapter
+from app.services.qcto_km_assessment_guide_service import build_qcto_km_assessment_guide_docx_adapter
+from app.services.qcto_km_poe_service import build_qcto_km_poe_docx_adapter
+from app.services.qcto_pm_facilitator_guide_service import build_qcto_pm_facilitator_guide_docx_adapter
+from app.services.qcto_pm_assessment_guide_service import build_qcto_pm_assessment_guide_docx_adapter
+from app.services.qcto_wm_supervisor_guide_service import build_qcto_wm_supervisor_guide_docx_adapter
+from app.services.qcto_km_learner_workbook_service import build_qcto_km_learner_workbook_docx_adapter
+from app.services.qcto_isa_service import build_qcto_isa_docx_adapter
+from app.services.qcto_final_exam_service import build_qcto_final_exam_docx_adapter
+from app.services.qcto_fisa_service import build_qcto_fisa_docx_adapter
+from app.services.qcto_learning_matrix_service import build_qcto_learning_matrix_docx_adapter
+from app.services.qcto_km_powerpoint_service import build_qcto_km_powerpoint_zip_adapter
+from app.services.qcto_pm_powerpoint_service import build_qcto_pm_powerpoint_zip_adapter
+from app.services.qcto_pm_poe_service import build_qcto_pm_poe_docx_adapter
 
 @celery_app.task(name="generate_textbook_task")
 def generate_textbook_task(job_id: str):
@@ -183,8 +197,44 @@ DOCUMENT_BUILDERS = {
     "qcto_video_guide": (build_qcto_video_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "qcto_km_assessment": (build_qcto_km_assessment_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "qcto_pm_assessment": (build_qcto_pm_assessment_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_facilitator_guide": (build_qcto_km_facilitator_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_assessment_guide": (build_qcto_km_assessment_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_poe": (build_qcto_km_poe_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_pm_facilitator_guide": (build_qcto_pm_facilitator_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_pm_assessment_guide": (build_qcto_pm_assessment_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_wm_supervisor_guide": (build_qcto_wm_supervisor_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_learner_workbook": (build_qcto_km_learner_workbook_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_isa": (build_qcto_isa_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_final_exam": (build_qcto_final_exam_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_fisa": (build_qcto_fisa_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_learning_matrix": (build_qcto_learning_matrix_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_powerpoint": (build_qcto_km_powerpoint_zip_adapter, "zip", "application/zip"),
+    "qcto_pm_powerpoint": (build_qcto_pm_powerpoint_zip_adapter, "zip", "application/zip"),
+    "qcto_pm_poe": (build_qcto_pm_poe_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
 }
 
+def _get_or_generate_km_assessment_content(syllabus, module, job_id=None):
+    """Returns cached formative-assessment content for a KM module if already generated
+    and persisted on the syllabus; otherwise generates it once via
+    generate_qcto_assessment_content, persists it onto the module dict within the syllabus's
+    content, commits, and returns it — so every subsequent caller (the KM Formative
+    Assessment document AND the KM Facilitator Guide's Marking Memorandum) reads the exact
+    same real questions, rather than each independently generating its own."""
+    from app.services.ai_service import generate_qcto_assessment_content
+
+    cached = module.get("generated_formative_assessment")
+    if cached:
+        return cached
+
+    content = generate_qcto_assessment_content(module, job_id=job_id)
+    module["generated_formative_assessment"] = content
+
+    # Fresh reassignment — plain db.JSON columns don't auto-detect in-place mutation of
+    # nested dicts/lists, so this forces SQLAlchemy to recognize the change on commit.
+    modules = syllabus.content.get("modules", [])
+    syllabus.content = {**syllabus.content, "modules": modules}
+    db.session.commit()
+    return content
 
 
 @celery_app.task(name="generate_package_document_task")
@@ -215,6 +265,15 @@ def generate_package_document_task(job_id: str):
         else:
             units = syllabus.content.get("units", [])
         accreditation = syllabus.accreditation_info or {}
+
+        # KM Formative Assessment and the KM Facilitator Guide's Marking Memorandum must
+        # show the exact same real questions — generate them once here and cache them on
+        # the syllabus, so whichever document type runs first does the AI call and every
+        # later one (either document type) reads the same persisted content.
+        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_km_assessment", "qcto_km_facilitator_guide"):
+            for module in units:
+                if module.get("module_type") == "KM":
+                    _get_or_generate_km_assessment_content(syllabus, module, job_id=job.id)
 
         logo_bytes = None
         if organization and organization.logo_url:

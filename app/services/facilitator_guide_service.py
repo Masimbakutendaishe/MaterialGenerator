@@ -6,7 +6,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_facilitator_guide_content
-from app.services.document_service import _hex_to_rgb, _add_bottom_border, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY
+from app.services.document_service import _hex_to_rgb, _add_bottom_border, _add_branded_header_footer, DEFAULT_PRIMARY, DEFAULT_SECONDARY
 
 
 def build_facilitator_guide_docx(title: str, units: list, organization_name: str = None,
@@ -112,8 +112,7 @@ def build_facilitator_guide_docx(title: str, units: list, organization_name: str
     doc.add_paragraph()
     sig_p = doc.add_paragraph()
     sig_p.add_run("Assessor Signature: " + "_" * 30 + "     Date: " + "_" * 20)
-
-    _add_page_numbers(doc)
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
 
     buffer = BytesIO()
     doc.save(buffer)

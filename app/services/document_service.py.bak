@@ -12,21 +12,6 @@ DEFAULT_PRIMARY = "1A5276"
 DEFAULT_SECONDARY = "2874A6"
 DEFAULT_ACCENT = "F39C12"
 
-def _element_text(el) -> str:
-    """Returns the display text for a topic/module element, handling both shapes safely:
-    the current {"code": ..., "text": ...} dict shape, and the older plain-string shape
-    still present in syllabi extracted before that change — so existing DB records don't
-    break when rendered or consumed by document builders."""
-    if isinstance(el, dict):
-        return el.get("text", "") or ""
-    return el or ""
-
-
-def _element_code(el):
-    """Returns the element's code if present (dict shape only), else None."""
-    if isinstance(el, dict):
-        return el.get("code")
-    return None
 
 def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
     try:
@@ -503,63 +488,91 @@ def _add_page_numbers(doc: Document):
 
 def _add_watermark(doc: Document, logo_bytes: bytes, width_inches: float = 4.2):
     """Adds the organization logo as a large, washed-out watermark centered on every page.
-    Uses the legacy VML <w:pict> markup in the header rather than a hand-built DrawingML
-    anchor — this is what Word's own 'Insert Watermark > Picture Watermark' feature actually
-    generates, and renders far more reliably across Word versions than a floating DrawingML
-    picture built from scratch. gain/blacklevel on v:imagedata replicate the washed-out look."""
+    Inserted into the header as a floating (anchored) picture behind the text layer, using
+    Word's standard 'washout' recolor (lumMod/lumOff) so it reads as a watermark, not a logo."""
     if not logo_bytes:
         return
-
-    # VML namespaces aren't in python-docx's default prefix map — register them once so
-    # qn("v:...") / qn("o:...") resolve. Safe no-op on repeat calls (setdefault).
-    from docx.oxml.ns import nsmap as _nsmap
-    _nsmap.setdefault("v", "urn:schemas-microsoft-com:vml")
-    _nsmap.setdefault("o", "urn:schemas-microsoft-com:office:office")
 
     section = doc.sections[0]
     header = section.header
     header.is_linked_to_previous = False
-    # Dedicated paragraph for the watermark, separate from the header's logo/qualification-name
-    # paragraph — sharing a paragraph caused both pictures to get the same docPr id, which made
-    # Word silently drop one of them.
-    watermark_para = header.add_paragraph()
+    watermark_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
     watermark_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     run = watermark_para.add_run()
     run.add_picture(BytesIO(logo_bytes), width=Inches(width_inches))
 
-    # add_picture() creates a modern <w:drawing> (DrawingML); pull the relationship id it
-    # just created for the embedded image, then swap the drawing for the legacy VML <w:pict>
-    # watermark markup, reusing that same image relationship.
+    # add_picture() creates an inline <wp:inline> drawing; pull its size + graphic content,
+    # then rebuild as a floating <wp:anchor> positioned centered on the page, behind text.
     drawing = run._element.find(qn("w:drawing"))
-    blip = drawing.find(f".//{qn('a:blip')}")
-    r_id = blip.get(qn("r:embed"))
+    inline = drawing.find(qn("wp:inline"))
+    extent = inline.find(qn("wp:extent"))
+    graphic = inline.find(qn("a:graphic"))
+    cx, cy = extent.get("cx"), extent.get("cy")
 
-    width_pt = int(width_inches * 72)
+    anchor = OxmlElement("wp:anchor")
+    for attr, val in {
+        "distT": "0", "distB": "0", "distL": "0", "distR": "0",
+        "simplePos": "0", "relativeHeight": "2", "behindDoc": "1",
+        "locked": "0", "layoutInCell": "1", "allowOverlap": "1",
+    }.items():
+        anchor.set(attr, val)
 
-    pict = OxmlElement("w:pict")
-    shape = OxmlElement("v:shape")
-    shape.set("id", "WatermarkShape")
-    shape.set("type", "#_x0000_t75")
-    shape.set("style", (
-        f"position:absolute;left:0;text-align:left;margin-left:0;margin-top:0;"
-        f"width:{width_pt}pt;height:{width_pt}pt;z-index:-251658240;"
-        f"mso-position-horizontal:center;mso-position-horizontal-relative:margin;"
-        f"mso-position-vertical:center;mso-position-vertical-relative:margin"
-    ))
-    shape.set(qn("o:allowoverlap"), "f")
+    simple_pos = OxmlElement("wp:simplePos")
+    simple_pos.set("x", "0")
+    simple_pos.set("y", "0")
 
-    imagedata = OxmlElement("v:imagedata")
-    imagedata.set(qn("r:id"), r_id)
-    imagedata.set(qn("o:title"), "")
-    imagedata.set("gain", "19661f")
-    imagedata.set("blacklevel", "22938f")
+    pos_h = OxmlElement("wp:positionH")
+    pos_h.set("relativeFrom", "page")
+    align_h = OxmlElement("wp:align")
+    align_h.text = "center"
+    pos_h.append(align_h)
 
-    shape.append(imagedata)
-    pict.append(shape)
+    pos_v = OxmlElement("wp:positionV")
+    pos_v.set("relativeFrom", "page")
+    align_v = OxmlElement("wp:align")
+    align_v.text = "center"
+    pos_v.append(align_v)
 
-    run._element.remove(drawing)
-    run._element.append(pict)
+    new_extent = OxmlElement("wp:extent")
+    new_extent.set("cx", cx)
+    new_extent.set("cy", cy)
+
+    effect_extent = OxmlElement("wp:effectExtent")
+    for attr in ("l", "t", "r", "b"):
+        effect_extent.set(attr, "0")
+
+    wrap_none = OxmlElement("wp:wrapNone")
+
+    doc_pr = OxmlElement("wp:docPr")
+    doc_pr.set("id", "1")
+    doc_pr.set("name", "Watermark")
+
+    cnv_graphic_frame_pr = OxmlElement("wp:cNvGraphicFramePr")
+
+    anchor.append(simple_pos)
+    anchor.append(pos_h)
+    anchor.append(pos_v)
+    anchor.append(new_extent)
+    anchor.append(effect_extent)
+    anchor.append(wrap_none)
+    anchor.append(doc_pr)
+    anchor.append(cnv_graphic_frame_pr)
+    anchor.append(graphic)
+
+    # Wash out the image so it reads as a faint watermark, not a solid logo — same
+    # lumMod/lumOff recolor Word's own "Watermark" tool applies.
+    blip = anchor.find(f".//{qn('a:blip')}")
+    if blip is not None:
+        lum_mod = OxmlElement("a:lumMod")
+        lum_mod.set("val", "20000")
+        lum_off = OxmlElement("a:lumOff")
+        lum_off.set("val", "80000")
+        blip.append(lum_mod)
+        blip.append(lum_off)
+
+    drawing.remove(inline)
+    drawing.append(anchor)
 
 
 def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualification_name: str = None,
@@ -573,10 +586,6 @@ def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualific
     aren't supplied."""
     section = doc.sections[0]
     color_hex = (primary_hex or DEFAULT_PRIMARY).lstrip("#").upper()
-
-    # Cover page (page 1) gets none of this — matches the reference material, where the
-    # cover has no footer bar or header logo, only content pages from page 2 onward do.
-    section.different_first_page_header_footer = True
 
     if logo_bytes or qualification_name:
         header = section.header
@@ -641,56 +650,76 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
                           logo_bytes: bytes, primary, primary_hex: str, secondary,
                           accent_hex: str = None, qualification_code: str = None,
                           nqf_level: str = None, credits: str = None):
-    """Shared branded cover page used by every document type: full page border, centered
-    logo, bold title, colored accent rules, and a shaded organization name band.
-    accent_hex/qualification_code/nqf_level/credits are accepted for call-site compatibility
-    with newer callers but not currently used in this (reverted) layout."""
-    _add_page_border(doc.sections[0], primary_hex)
+    """Shared branded cover page used by every document type. Modern brochure layout: a
+    full-bleed colored hero band carrying the logo + title + subtitle in white, a badge row
+    for qualification code/NQF level/credits when supplied, and a colored base band —
+    replacing the older boxed/clip-art layout. Original positional signature is unchanged so
+    all 13 existing callers keep working; the four new params are optional additions."""
+    accent_hex = (accent_hex or DEFAULT_ACCENT).lstrip("#").upper()
 
-    for _ in range(3):
-        doc.add_paragraph()
+    def _hero_paragraph(space_before=0, space_after=0):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _shade_paragraph(p, primary_hex)
+        p.paragraph_format.space_before = Pt(space_before)
+        p.paragraph_format.space_after = Pt(space_after)
+        return p
+
+    # Top color band with generous breathing room
+    for _ in range(4):
+        _hero_paragraph()
 
     if logo_bytes:
-        logo_para = doc.add_paragraph()
-        logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        logo_para.add_run().add_picture(BytesIO(logo_bytes), width=Inches(1.6))
-        doc.add_paragraph()
+        logo_para = _hero_paragraph(space_after=14)
+        logo_para.add_run().add_picture(BytesIO(logo_bytes), height=Inches(0.9))
 
-    rule_above = doc.add_paragraph()
-    rule_above.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_bottom_border(rule_above, primary_hex, size="10")
-
-    title_para = doc.add_paragraph()
-    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_run = title_para.add_run(doc_title)
+    title_para = _hero_paragraph(space_before=6)
+    title_run = title_para.add_run(doc_title.upper())
     title_run.bold = True
-    title_run.font.size = Pt(26)
-    title_run.font.color.rgb = primary
+    title_run.font.size = Pt(34)
+    title_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    title_run.font.name = "Calibri"
 
     if doc_subtitle:
-        subtitle_para = doc.add_paragraph()
-        subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        subtitle_para = _hero_paragraph(space_before=4, space_after=14)
         subtitle_run = subtitle_para.add_run(doc_subtitle)
-        subtitle_run.italic = True
-        subtitle_run.font.size = Pt(13)
-        subtitle_run.font.color.rgb = secondary
+        subtitle_run.font.size = Pt(15)
+        subtitle_run.font.color.rgb = _hex_to_rgb(accent_hex, DEFAULT_ACCENT)
+        subtitle_run.bold = True
 
-    rule_below = doc.add_paragraph()
-    rule_below.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_bottom_border(rule_below, primary_hex, size="10")
+    # Badge row: qualification code / NQF level / credits, shown as pill-style inline labels
+    badges = [b for b in [
+        (f"SAQA/Qualification Code: {qualification_code}" if qualification_code else None),
+        (f"NQF Level {nqf_level}" if nqf_level else None),
+        (f"{credits} Credits" if credits else None),
+    ] if b]
+    if badges:
+        badge_para = _hero_paragraph(space_before=6, space_after=4)
+        badge_run = badge_para.add_run("   •   ".join(badges))
+        badge_run.font.size = Pt(11)
+        badge_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        badge_run.italic = True
 
-    doc.add_paragraph()
+    for _ in range(3):
+        _hero_paragraph()
+
+    # Thin accent rule closing the hero band, then a shaded organization strip beneath it
+    close_rule = doc.add_paragraph()
+    close_rule.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _shade_paragraph(close_rule, accent_hex)
+    close_rule.paragraph_format.space_before = Pt(0)
+    close_rule.paragraph_format.space_after = Pt(0)
+    close_rule.add_run(" ").font.size = Pt(3)
 
     if organization_name:
         org_para = doc.add_paragraph()
         org_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        org_para.paragraph_format.space_before = Pt(6)
-        org_para.paragraph_format.space_after = Pt(6)
-        _shade_paragraph(org_para, primary_hex)
-        org_run = org_para.add_run(f"  {organization_name}  ")
-        org_run.font.size = Pt(15)
+        org_para.paragraph_format.space_before = Pt(10)
+        org_para.paragraph_format.space_after = Pt(10)
+        org_run = org_para.add_run(organization_name)
+        org_run.font.size = Pt(13)
         org_run.bold = True
-        org_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+        org_run.font.color.rgb = primary
 
     doc.add_page_break()
 

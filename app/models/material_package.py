@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from app.extensions import db
 
-PACKAGE_TYPES = ("masterclass", "full_training_set")
+PACKAGE_TYPES = ("masterclass", "full_training_set", "qcto_full_set", "qcto_part_qualification", "qcto_skills_programme")
 
 # Document subtypes per package type — used by the trigger route to know what to generate
 PACKAGE_DOCUMENTS = {
@@ -22,7 +22,39 @@ PACKAGE_DOCUMENTS = {
         "poe_guide",
         "moderator_guide",
     ],
+    # Full Qualification: KM + PM + WM + Assessments + Video Guide. This is the real,
+    # complete Full Qualification document list for what's currently buildable — the fuller
+    # 21-document breakdown (Facilitator/Assessment Guides, POE, Learner Workbook, ISA,
+    # Final Exam, per-module PowerPoint, WM Guide for Industry Supervisors, etc.) still needs
+    # builders written; add each here as it's built.
     "qcto_full_set": [
+        "qcto_knowledge_modules",
+        "qcto_km_facilitator_guide",
+        "qcto_km_assessment_guide",
+        "qcto_km_poe",
+        "qcto_km_learner_workbook",
+        "qcto_km_powerpoint",
+        "qcto_practical_modules",
+        "qcto_pm_facilitator_guide",
+        "qcto_pm_assessment_guide",
+        "qcto_pm_powerpoint",
+        "qcto_pm_poe",
+        "qcto_workplace_modules",
+        "qcto_wm_supervisor_guide",
+        "qcto_workplace_logbook",
+        "qcto_video_guide",
+        "qcto_km_assessment",
+        "qcto_pm_assessment",
+        "qcto_isa",
+        "qcto_final_exam",
+        "qcto_learning_matrix",
+    ],
+    # Part Qualification:
+    # Part Qualification: same document set as Full Qualification, plus a Learning Matrix
+    # (not yet built — this list is identical to qcto_full_set as an interim placeholder
+    # until the Learning Matrix builder exists; add "programme_alignment_matrix" or a
+    # dedicated learning-matrix subtype here once it's wired up for QCTO content).
+    "qcto_part_qualification": [
         "qcto_knowledge_modules",
         "qcto_practical_modules",
         "qcto_workplace_modules",
@@ -30,6 +62,22 @@ PACKAGE_DOCUMENTS = {
         "qcto_video_guide",
         "qcto_km_assessment",
         "qcto_pm_assessment",
+        "qcto_isa",
+    ],
+    # Skills Programme:
+    # Skills Programme: same KM + PM documents as Full Qualification, but should replace
+    # ISA + Final Exam with a single FISA (Final Integrated Summative Assessment) — neither
+    # ISA nor FISA exist as builders yet, so this is an interim placeholder identical to
+    # qcto_full_set; revisit once FISA is built.
+    "qcto_skills_programme": [
+        "qcto_knowledge_modules",
+        "qcto_practical_modules",
+        "qcto_workplace_modules",
+        "qcto_workplace_logbook",
+        "qcto_video_guide",
+        "qcto_km_assessment",
+        "qcto_pm_assessment",
+        "qcto_fisa",
     ],
 }
 

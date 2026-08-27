@@ -7,7 +7,7 @@ from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_qcto_practical_module_content
 from app.services.document_service import (
-    _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_page_numbers,
+        _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer,
     _render_content_block, _add_bottom_border, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT,
 )
 
@@ -21,14 +21,16 @@ def build_qcto_practical_module_docx(title: str, syllabus_content: dict, organiz
     accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
+    qualification_title = syllabus_content.get("qualification_title", "") or title
 
     doc = Document()
-    _build_branded_cover(doc, title, "Practical Modules", organization_name, logo_bytes, primary, primary_hex, secondary)
+    _build_branded_cover(doc, qualification_title, "PM Learner Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
-    for label in ["Learner Name:", "Facilitator Name:", "Date of Submission:"]:
-        p = doc.add_paragraph()
-        p.add_run(f"{label} " + "_" * 40)
-        p.paragraph_format.space_after = Pt(14)
+    details_table = doc.add_table(rows=5, cols=2)
+    details_table.style = "Table Grid"
+    for i, field in enumerate(["Learner Name", "Facilitator Name", "Assessor Name", "Moderator Name", "Date of Submission"]):
+        details_table.cell(i, 0).text = field
+        details_table.cell(i, 0).paragraphs[0].runs[0].bold = True
     doc.add_page_break()
 
     pm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "PM"]
@@ -71,6 +73,24 @@ def build_qcto_practical_module_docx(title: str, syllabus_content: dict, organiz
         purpose_p = doc.add_paragraph(content.get("module_purpose", ""))
         purpose_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
+        pa_items = module.get("performance_assessment") or []
+        if pa_items:
+            ref_p = doc.add_paragraph()
+            ref_run = ref_p.add_run("Performance Assessment Elements Covered in This Module:")
+            ref_run.bold = True
+            ref_run.italic = True
+            ref_run.font.size = Pt(10)
+            ref_run.font.color.rgb = secondary
+            for pa in pa_items:
+                code = pa.get("code") if isinstance(pa, dict) else None
+                text = pa.get("text", "") if isinstance(pa, dict) else (pa or "")
+                label = f"{code}: {text}" if code else text
+                item_p = doc.add_paragraph(label, style="List Bullet")
+                for run in item_p.runs:
+                    run.font.size = Pt(10)
+                    run.italic = True
+            doc.add_paragraph()
+
         for u_index, unit in enumerate(content.get("units", []), start=1):
             unit_heading = doc.add_paragraph()
             uh_run = unit_heading.add_run(f"Unit {m_index}.{u_index}: {unit.get('unit_title', '')}")
@@ -93,7 +113,7 @@ def build_qcto_practical_module_docx(title: str, syllabus_content: dict, organiz
         doc.add_page_break()
 
     _add_signature_block(doc)
-    _add_page_numbers(doc)
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
 
     buffer = BytesIO()
     doc.save(buffer)

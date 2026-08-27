@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_summative_assessment_content
-from app.services.document_service import _hex_to_rgb, _add_page_numbers, DEFAULT_PRIMARY
+from app.services.document_service import _hex_to_rgb, _add_branded_header_footer, DEFAULT_PRIMARY
 
 
 def build_summative_assessment_docx(title: str, units: list, organization_name: str = None,
@@ -76,7 +76,7 @@ def build_summative_assessment_docx(title: str, units: list, organization_name: 
     doc.add_page_break()
     from app.services.document_service import _add_signature_block
     _add_signature_block(doc)
-    _add_page_numbers(doc)
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
 
     buffer = BytesIO()
     doc.save(buffer)

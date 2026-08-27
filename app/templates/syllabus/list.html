@@ -29,11 +29,17 @@
                 <td class="px-6 py-3 text-steel-500 capitalize">{{ s.source.replace('_', ' ') }}</td>
                 <td class="px-6 py-3 text-steel-500">{{ s.created_at.strftime('%Y-%m-%d') }}</td>
                 <td class="px-6 py-3 text-right">
-                    {% if s.status == 'processing' %}
+                                        {% if s.status == 'processing' %}
                     <span class="inline-flex items-center gap-1.5 text-xs font-medium text-signal">
                         <span class="inline-block w-3 h-3 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
                         Processing
                     </span>
+                                        <form method="POST" action="{{ url_for('syllabus_web.cancel_processing', syllabus_id=s.id) }}" class="inline" onclick="event.stopPropagation()">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="text-red-600 hover:text-red-700 text-xs font-medium underline ml-2">
+                            Cancel
+                        </button>
+                    </form>
                     {% elif s.status == 'failed' %}
                     <span class="text-red-600 text-xs font-medium">Failed</span>
                     {% elif s.syllabus_type == 'qcto' %}

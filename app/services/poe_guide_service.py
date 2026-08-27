@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from app.services.ai_service import _call_model, _repair_json_string
 from app.services.document_service import (
-    _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_page_numbers, DEFAULT_PRIMARY,
+       _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer, DEFAULT_PRIMARY,
 )
 import json
 
@@ -143,7 +143,7 @@ def build_poe_guide_docx(title: str, units: list, organization_name: str = None,
 
     doc.add_page_break()
     _add_signature_block(doc)
-    _add_page_numbers(doc)
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
 
     buffer = BytesIO()
     doc.save(buffer)

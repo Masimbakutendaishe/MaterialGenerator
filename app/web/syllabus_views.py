@@ -1,4 +1,4 @@
-"""Syllabus web pages: list, and three intake methods (typed, upload, AI-generate)."""
+﻿"""Syllabus web pages: list, and three intake methods (typed, upload, AI-generate)."""
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -119,7 +119,7 @@ def create_upload():
 
         process_qcto_syllabus_task.delay(syllabus.id, raw_text)
 
-        flash("Your QCTO curriculum is being processed in the background — you'll be notified once it's ready.")
+        flash("Your curriculum is being processed in the background — you'll be notified once it's ready.")
         return redirect(url_for("syllabus_web.list_syllabi"))
 
     # Standard uploads are fast enough to stay synchronous
@@ -180,6 +180,18 @@ def create_ai():
     flash(f"'{topic}' is being generated in the background — you'll be notified once it's ready.")
     return redirect(url_for("syllabus_web.list_syllabi"))
 
+@syllabus_web_bp.route("/<syllabus_id>/cancel", methods=["POST"])
+@login_required
+def cancel_processing(syllabus_id):
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first_or_404()
+    if syllabus.status != "processing":
+        flash("This curriculum is not currently processing.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    syllabus.status = "cancelled"
+    db.session.commit()
+    flash("Cancellation requested — processing will stop after the current step finishes.")
+    return redirect(url_for("syllabus_web.list_syllabi"))
 
 
 @syllabus_web_bp.route("/<syllabus_id>")
