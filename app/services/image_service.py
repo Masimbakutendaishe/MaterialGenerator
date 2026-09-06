@@ -47,6 +47,19 @@ def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: 
     gap = 0.5
 
     fig_height = sum(box_heights) + gap * (len(steps) - 1) + 1
+
+    # Cap the figure height so a diagram with many steps never ends up taller than a
+    # single page once inserted at its fixed 4.5in width — without this, a long flowchart
+    # could produce an image that gets visually cut off at the page boundary. If the
+    # natural size would exceed the cap, shrink box heights and the gap between them
+    # proportionally so everything still fits, rather than letting it overflow.
+    MAX_FIG_HEIGHT = 8.96  # keeps on-page height at ~6.2in at the 4.5in insertion width
+    scale = 1.0
+    if fig_height > MAX_FIG_HEIGHT:
+        scale = (MAX_FIG_HEIGHT - 1) / (fig_height - 1)
+        box_heights = [h * scale for h in box_heights]
+        gap = gap * scale
+        fig_height = MAX_FIG_HEIGHT
     fig, ax = plt.subplots(figsize=(6.5, fig_height))
     ax.axis("off")
 
@@ -75,7 +88,7 @@ def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: 
             )
 
         ax.add_patch(patch)
-        ax.text(cx, cy, label, ha="center", va="center", color="white", fontsize=9, fontweight="bold")
+        ax.text(cx, cy, label, ha="center", va="center", color="white", fontsize=max(6, 9 * scale), fontweight="bold")
 
         if i < len(steps) - 1:
             next_height = box_heights[i + 1]

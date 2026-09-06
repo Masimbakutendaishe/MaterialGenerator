@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_summative_assessment_content
-from app.services.document_service import _hex_to_rgb, _add_page_numbers, DEFAULT_PRIMARY
+from app.services.document_service import _hex_to_rgb, _add_branded_header_footer, DEFAULT_PRIMARY
 
 
 def build_summative_assessment_docx(title: str, units: list, organization_name: str = None,
@@ -76,7 +76,7 @@ def build_summative_assessment_docx(title: str, units: list, organization_name: 
     doc.add_page_break()
     from app.services.document_service import _add_signature_block
     _add_signature_block(doc)
-    _add_page_numbers(doc)
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
 
     buffer = BytesIO()
     doc.save(buffer)
@@ -113,7 +113,7 @@ def _render_section(doc, section_label, section_desc, questions, primary, total_
                 opt_para.paragraph_format.space_after = Pt(2)
                 opt_para.add_run(f"{letter}. {cleaned_option}")
         else:
-            blank_lines = min(q.get("blank_lines", 3), 8)  # cap so essay answers don't sprawl across pages
+            blank_lines = max(q.get("blank_lines", 3), min(round(q.get("marks", 0) * 0.8), 10))  # scales with marks — a high-mark essay gets proportionally more room, a low-mark question doesn't sprawl
             for _ in range(blank_lines):
                 line_para = doc.add_paragraph()
                 line_para.paragraph_format.space_before = Pt(0)

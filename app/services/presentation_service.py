@@ -66,7 +66,7 @@ def _add_footer_band(slide, prs, organization_name: str, primary: RGBColor):
 
 def build_presentation_pptx(title: str, units: list, organization_name: str = None,
                              brand_colors: dict = None, seta: str = None, nqf_level: str = None,
-                             logo_bytes: bytes = None, job_id: str = None) -> BytesIO:
+                             logo_bytes: bytes = None, job_id: str = None, **kwargs) -> BytesIO:
     brand_colors = brand_colors or {}
     primary = _hex_to_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(brand_colors.get("secondary"), DEFAULT_SECONDARY)

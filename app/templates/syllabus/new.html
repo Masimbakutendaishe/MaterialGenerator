@@ -25,12 +25,21 @@
         </div>
         <div class="flex gap-4">
             <div class="flex-1">
-                <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA</label>
-                <input type="text" name="seta" placeholder="e.g. MERSETA" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                                <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA</label>
+                <select name="seta" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                    <option value="">Select a SETA</option>
+                    {% for slug, name in seta_choices.items() %}
+                    <option value="{{ slug }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
             </div>
-            <div class="flex-1">
+                        <div class="flex-1">
                 <label class="block text-sm font-medium text-steel-500 mb-1.5">NQF Level</label>
                 <input type="text" name="nqf_level" placeholder="e.g. 3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+            </div>
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">SAQA ID (optional)</label>
+                <input type="text" name="saqa_id" placeholder="e.g. 118976" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
             </div>
         </div>
         <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Generate Syllabus</button>
@@ -41,27 +50,70 @@
 <!-- Type It In -->
 <div id="panel-typed" class="hidden bg-white rounded-lg border border-steel-200 p-6">
     <h2 class="text-sm font-semibold text-navy-900 uppercase tracking-wide mb-4">Type In Manually</h2>
-    <form method="POST" action="{{ url_for('syllabus_web.create_typed') }}" class="space-y-4">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div>
-            <label class="block text-sm font-medium text-steel-500 mb-1.5">Syllabus Title</label>
-            <input type="text" name="title" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
-        </div>
 
-        <div id="units-container" class="space-y-4">
-            <div class="border border-steel-200 rounded p-4">
-                <label class="block text-sm font-medium text-steel-500 mb-1.5">Unit Name</label>
-                <input type="text" name="unit_name[]" placeholder="e.g. Unit 1: Introduction" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 mb-3 focus:outline-none focus:ring-2 focus:ring-signal">
-                <label class="block text-sm font-medium text-steel-500 mb-1.5">Learning Outcomes (one per line)</label>
-                <textarea name="unit_outcomes[]" rows="3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal"></textarea>
+    <div class="flex gap-2 mb-4">
+        <button type="button" onclick="showTypedMode('standard')" id="typed-mode-standard" class="typed-mode-btn px-3 py-1.5 rounded text-xs font-medium bg-navy-950 text-white">Standard Syllabus</button>
+        <button type="button" onclick="showTypedMode('qcto')" id="typed-mode-qcto" class="typed-mode-btn px-3 py-1.5 rounded text-xs font-medium bg-white border border-steel-200 text-steel-500">QCTO Curriculum</button>
+    </div>
+
+    <div id="typed-standard-form">
+        <form method="POST" action="{{ url_for('syllabus_web.create_typed') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Syllabus Title</label>
+                <input type="text" name="title" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
             </div>
-        </div>
+            <div id="units-container" class="space-y-4">
+                <div class="border border-steel-200 rounded p-4">
+                    <label class="block text-sm font-medium text-steel-500 mb-1.5">Unit Name</label>
+                    <input type="text" name="unit_name[]" placeholder="e.g. Unit 1: Introduction" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 mb-3 focus:outline-none focus:ring-2 focus:ring-signal">
+                    <label class="block text-sm font-medium text-steel-500 mb-1.5">Learning Outcomes (one per line)</label>
+                    <textarea name="unit_outcomes[]" rows="3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal"></textarea>
+                </div>
+            </div>
+            <button type="button" onclick="addUnit()" class="text-signal text-sm font-medium hover:underline">+ Add Another Unit</button>
+            <div>
+                <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Create Syllabus</button>
+            </div>
+        </form>
+    </div>
 
-        <button type="button" onclick="addUnit()" class="text-signal text-sm font-medium hover:underline">+ Add Another Unit</button>
-        <div>
-            <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Create Syllabus</button>
-        </div>
-    </form>
+    <div id="typed-qcto-form" class="hidden">
+        <form method="POST" action="{{ url_for('syllabus_web.create_typed_qcto') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Qualification Title</label>
+                <input type="text" name="title" required class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+            </div>
+            <div class="flex gap-4">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA (optional)</label>
+                    <select name="seta" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                        <option value="">Select a SETA</option>
+                        {% for slug, name in seta_choices.items() %}
+                        <option value="{{ slug }}">{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-steel-500 mb-1.5">NQF Level (optional)</label>
+                    <input type="text" name="nqf_level" placeholder="e.g. 3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-steel-500 mb-1.5">SAQA ID (optional)</label>
+                    <input type="text" name="saqa_id" placeholder="e.g. 118976" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                </div>
+            </div>
+
+            <div id="qcto-modules-container" class="space-y-4"></div>
+            <button type="button" onclick="addQctoModule()" class="text-signal text-sm font-medium hover:underline">+ Add Module</button>
+
+            <div>
+                <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Create QCTO Curriculum</button>
+                <p class="text-steel-400 text-xs mt-2">Add at least one module with a title. Topics, elements, and IAC codes can be added per module below.</p>
+            </div>
+        </form>
+    </div>
 </div>
 
 <!-- Upload -->
@@ -79,8 +131,13 @@
         </div>
         <div class="flex gap-4">
             <div class="flex-1">
-                <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA</label>
-                <input type="text" name="seta" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                                <label class="block text-sm font-medium text-steel-500 mb-1.5">SETA</label>
+                <select name="seta" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                    <option value="">Select a SETA</option>
+                    {% for slug, name in seta_choices.items() %}
+                    <option value="{{ slug }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="flex-1">
                 <label class="block text-sm font-medium text-steel-500 mb-1.5">NQF Level</label>
@@ -125,6 +182,144 @@ function addUnit() {
         <textarea name="unit_outcomes[]" rows="3" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal"></textarea>
     `;
     container.appendChild(div);
+}
+
+function addQctoModule() {
+    const idx = window.qctoModuleCount = (window.qctoModuleCount || 0);
+    window.qctoModuleCount++;
+    const container = document.getElementById("qcto-modules-container");
+    const div = document.createElement("div");
+    div.id = `qcto-module-block-${idx}`;
+    div.className = "qcto-module-block border border-steel-200 rounded p-4 space-y-3";
+    div.dataset.topicCount = "0";
+    div.dataset.paCount = "0";
+    div.dataset.weCount = "0";
+    div.innerHTML = `
+        <div class="flex gap-3">
+            <select name="module-${idx}-type" onchange="onQctoModuleTypeChange(${idx})" class="border border-steel-200 rounded px-2 py-1.5 text-sm">
+                <option value="">Select type</option>
+                <option value="KM">Knowledge Module</option>
+                <option value="PM">Practical Skill Module</option>
+                <option value="WM">Work Experience Module</option>
+            </select>
+            <input type="text" name="module-${idx}-code" placeholder="Module code" class="border border-steel-200 rounded px-2 py-1.5 text-sm flex-1">
+            <input type="text" name="module-${idx}-title" placeholder="Module title" class="border border-steel-200 rounded px-2 py-1.5 text-sm flex-1">
+            <input type="text" name="module-${idx}-nqf" placeholder="NQF" class="border border-steel-200 rounded px-2 py-1.5 text-sm w-20">
+            <input type="text" name="module-${idx}-credits" placeholder="Credits" class="border border-steel-200 rounded px-2 py-1.5 text-sm w-20">
+            <button type="button" onclick="removeQctoModule(${idx})" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+        </div>
+        <div id="qcto-module-${idx}-km-section" class="hidden pl-4 space-y-2">
+            <div id="qcto-module-${idx}-topics-container" class="space-y-2"></div>
+            <button type="button" onclick="addQctoTopic(${idx})" class="text-signal text-xs font-medium hover:underline">+ Add Topic</button>
+        </div>
+        <div id="qcto-module-${idx}-pm-section" class="hidden pl-4 space-y-2">
+            <div id="qcto-module-${idx}-pa-container" class="space-y-2"></div>
+            <button type="button" onclick="addQctoPA(${idx})" class="text-signal text-xs font-medium hover:underline">+ Add Performance Assessment Item</button>
+        </div>
+        <div id="qcto-module-${idx}-wm-section" class="hidden pl-4 space-y-2">
+            <div id="qcto-module-${idx}-we-container" class="space-y-2"></div>
+            <button type="button" onclick="addQctoWE(${idx})" class="text-signal text-xs font-medium hover:underline">+ Add Work Experience Element</button>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function removeQctoModule(idx) {
+    const el = document.getElementById(`qcto-module-block-${idx}`);
+    if (el) el.remove();
+}
+
+function onQctoModuleTypeChange(mIdx) {
+    const select = document.querySelector(`select[name="module-${mIdx}-type"]`);
+    const type = select.value;
+    document.getElementById(`qcto-module-${mIdx}-km-section`).classList.toggle("hidden", type !== "KM");
+    document.getElementById(`qcto-module-${mIdx}-pm-section`).classList.toggle("hidden", type !== "PM");
+    document.getElementById(`qcto-module-${mIdx}-wm-section`).classList.toggle("hidden", type !== "WM");
+}
+
+function addQctoTopic(mIdx) {
+    const moduleBlock = document.getElementById(`qcto-module-block-${mIdx}`);
+    const tIdx = parseInt(moduleBlock.dataset.topicCount);
+    moduleBlock.dataset.topicCount = tIdx + 1;
+    moduleBlock.dataset[`topic${tIdx}ElementCount`] = "0";
+
+    const container = document.getElementById(`qcto-module-${mIdx}-topics-container`);
+    const div = document.createElement("div");
+    div.id = `qcto-topic-block-${mIdx}-${tIdx}`;
+    div.className = "border-l-2 border-steel-200 pl-3 space-y-2";
+    div.innerHTML = `
+        <div class="flex gap-2">
+            <input type="text" name="module-${mIdx}-topic-${tIdx}-code" placeholder="Topic code" class="border border-steel-200 rounded px-2 py-1 text-xs w-24">
+            <input type="text" name="module-${mIdx}-topic-${tIdx}-title" placeholder="Topic title" class="border border-steel-200 rounded px-2 py-1 text-xs flex-1">
+            <button type="button" onclick="removeQctoTopic(${mIdx}, ${tIdx})" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+        </div>
+        <div id="qcto-module-${mIdx}-topic-${tIdx}-elements-container" class="pl-4 space-y-1"></div>
+        <button type="button" onclick="addQctoElement(${mIdx}, ${tIdx})" class="text-signal text-xs font-medium hover:underline">+ Add Element/IAC</button>
+    `;
+    container.appendChild(div);
+}
+
+function removeQctoTopic(mIdx, tIdx) {
+    const el = document.getElementById(`qcto-topic-block-${mIdx}-${tIdx}`);
+    if (el) el.remove();
+}
+
+function addQctoElement(mIdx, tIdx) {
+    const moduleBlock = document.getElementById(`qcto-module-block-${mIdx}`);
+    const key = `topic${tIdx}ElementCount`;
+    const eIdx = parseInt(moduleBlock.dataset[key] || "0");
+    moduleBlock.dataset[key] = eIdx + 1;
+
+    const container = document.getElementById(`qcto-module-${mIdx}-topic-${tIdx}-elements-container`);
+    const div = document.createElement("div");
+    div.id = `qcto-element-row-${mIdx}-${tIdx}-${eIdx}`;
+    div.className = "flex gap-2";
+    div.innerHTML = `
+        <input type="text" name="module-${mIdx}-topic-${tIdx}-element-${eIdx}-code" placeholder="Element code" class="border border-steel-200 rounded px-2 py-1 text-xs w-24">
+        <input type="text" name="module-${mIdx}-topic-${tIdx}-element-${eIdx}-text" placeholder="Element text" class="border border-steel-200 rounded px-2 py-1 text-xs flex-1">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+    `;
+    container.appendChild(div);
+}
+
+function addQctoPA(mIdx) {
+    const moduleBlock = document.getElementById(`qcto-module-block-${mIdx}`);
+    const pIdx = parseInt(moduleBlock.dataset.paCount);
+    moduleBlock.dataset.paCount = pIdx + 1;
+
+    const container = document.getElementById(`qcto-module-${mIdx}-pa-container`);
+    const div = document.createElement("div");
+    div.id = `qcto-pa-row-${mIdx}-${pIdx}`;
+    div.className = "flex gap-2";
+    div.innerHTML = `
+        <input type="text" name="module-${mIdx}-pa-${pIdx}-code" placeholder="PA code" class="border border-steel-200 rounded px-2 py-1 text-xs w-24">
+        <input type="text" name="module-${mIdx}-pa-${pIdx}-text" placeholder="Performance assessment text" class="border border-steel-200 rounded px-2 py-1 text-xs flex-1">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+    `;
+    container.appendChild(div);
+}
+
+function addQctoWE(mIdx) {
+    const moduleBlock = document.getElementById(`qcto-module-block-${mIdx}`);
+    const wIdx = parseInt(moduleBlock.dataset.weCount);
+    moduleBlock.dataset.weCount = wIdx + 1;
+
+    const container = document.getElementById(`qcto-module-${mIdx}-we-container`);
+    const div = document.createElement("div");
+    div.id = `qcto-we-row-${mIdx}-${wIdx}`;
+    div.className = "flex gap-2";
+    div.innerHTML = `
+        <input type="text" name="module-${mIdx}-we-${wIdx}-text" placeholder="Work experience element" class="border border-steel-200 rounded px-2 py-1 text-xs flex-1">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+    `;
+    container.appendChild(div);
+}
+
+function showTypedMode(mode) {
+    document.getElementById("typed-standard-form").classList.toggle("hidden", mode !== "standard");
+    document.getElementById("typed-qcto-form").classList.toggle("hidden", mode !== "qcto");
+    document.getElementById("typed-mode-standard").className = "typed-mode-btn px-3 py-1.5 rounded text-xs font-medium " + (mode === "standard" ? "bg-navy-950 text-white" : "bg-white border border-steel-200 text-steel-500");
+    document.getElementById("typed-mode-qcto").className = "typed-mode-btn px-3 py-1.5 rounded text-xs font-medium " + (mode === "qcto" ? "bg-navy-950 text-white" : "bg-white border border-steel-200 text-steel-500");
 }
 </script>
 {% endblock %}

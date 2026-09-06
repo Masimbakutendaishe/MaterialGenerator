@@ -17,15 +17,29 @@
     <td class="px-6 py-3 text-right">
         {% if job.status == 'done' and can_download %}
             <a href="{{ url_for('generation_web.download', job_id=job.id) }}" class="text-signal font-medium hover:underline">Download</a>
-        {% elif job.status == 'failed' %}
-            <span class="text-red-600 text-xs">{{ job.error_message or 'Failed' }}</span>
+                {% elif job.status == 'failed' %}
+            <span class="text-red-600 text-xs font-medium">Generation failed</span>
+            <form method="POST" action="{{ url_for('generation_web.retry', job_id=job.id) }}" class="inline ml-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="text-signal font-medium hover:underline text-xs">Retry</button>
+            </form>
+            {% if job.error_message %}
+            <details class="inline ml-2">
+                <summary class="text-steel-400 text-xs cursor-pointer hover:underline inline">View Log</summary>
+                <div class="text-steel-500 text-xs mt-1 max-w-md break-words">{{ job.error_message }}</div>
+            </details>
+            {% endif %}
         {% elif job.status in ('queued', 'running') %}
             <form method="POST" action="{{ url_for('generation_web.cancel', job_id=job.id) }}" class="inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="text-red-600 font-medium hover:underline text-xs">Cancel</button>
             </form>
-        {% elif job.status == 'cancelled' %}
+                {% elif job.status == 'cancelled' %}
             <span class="text-steel-400 text-xs">Cancelled</span>
+            <form method="POST" action="{{ url_for('generation_web.retry', job_id=job.id) }}" class="inline ml-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="text-signal font-medium hover:underline text-xs">Retry</button>
+            </form>
         {% endif %}
     </td>
 </tr>

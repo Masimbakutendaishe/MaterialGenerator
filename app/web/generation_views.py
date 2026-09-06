@@ -1,4 +1,4 @@
-"""Material generation page: pick a syllabus, trigger generation, poll status, download."""
+﻿"""Material generation page: pick a syllabus, trigger generation, poll status, download."""
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app.extensions import db
@@ -76,6 +76,25 @@ def cancel(job_id):
     flash("Generation cancelled.")
     return redirect(request.referrer or url_for("generation_web.index"))
 
+@generation_web_bp.route("/retry/<job_id>", methods=["POST"])
+@login_required
+def retry(job_id):
+    from app.tasks.generation_tasks import generate_package_document_task
+    job = GenerationJob.query.filter_by(id=job_id, organization_id=current_user.organization_id).first()
+    if not job:
+        flash("Job not found.")
+        return redirect(request.referrer or url_for("generation_web.index"))
+    if job.status not in ("failed", "cancelled"):
+        flash("Only failed or cancelled jobs can be retried.")
+        return redirect(request.referrer or url_for("generation_web.index"))
+    job.status = "queued"
+    job.error_message = None
+    db.session.commit()
+    async_result = generate_package_document_task.delay(job.id)
+    job.task_id = async_result.id
+    db.session.commit()
+    flash("Retrying generation...")
+    return redirect(request.referrer or url_for("generation_web.index"))
 
 @generation_web_bp.route("/status/<job_id>")
 @login_required
@@ -183,6 +202,7 @@ def trigger_package():
     db.session.add(package)
     db.session.flush()
 
+    jobs = []
     for subtype in PACKAGE_DOCUMENTS[package_type]:
         job = GenerationJob(
             organization_id=current_user.organization_id,
@@ -193,10 +213,19 @@ def trigger_package():
             triggered_by_user_id=current_user.id,
         )
         db.session.add(job)
-        db.session.flush()
+        jobs.append(job)
+
+    # Commit every job to the database BEFORE dispatching any of their tasks. Celery
+    # workers run on a separate database connection — if a task is dispatched while this
+    # transaction is still open, the worker can query for its job before this commit is
+    # visible to it, find nothing, and silently no-op (the job stays stuck at "queued"
+    # forever, with no error, since the task returns before ever reaching its own status
+    # updates).
+    db.session.commit()
+
+    for job in jobs:
         async_result = generate_package_document_task.delay(job.id)
         job.task_id = async_result.id
-
     db.session.commit()
 
     flash(f"Generating {package_type.replace('_', ' ')} for '{syllabus.title}'...")

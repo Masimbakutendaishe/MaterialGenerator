@@ -7,10 +7,28 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from app.services.ai_service import write_chapter_content
 import io
+import os
 
 DEFAULT_PRIMARY = "1A5276"
 DEFAULT_SECONDARY = "2874A6"
 DEFAULT_ACCENT = "F39C12"
+
+def _element_text(el) -> str:
+    """Returns the display text for a topic/module element, handling both shapes safely:
+    the current {"code": ..., "text": ...} dict shape, and the older plain-string shape
+    still present in syllabi extracted before that change — so existing DB records don't
+    break when rendered or consumed by document builders."""
+    if isinstance(el, dict):
+        return el.get("text", "") or ""
+    return el or ""
+
+
+def _element_code(el):
+    """Returns the element's code if present (dict shape only), else None."""
+    if isinstance(el, dict):
+        return el.get("code")
+    return None
+
 
 
 def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
@@ -291,7 +309,7 @@ def _set_default_font(doc: Document):
 
 def build_textbook_docx(title: str, units: list, organization_name: str = None,
                          seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
-                         brand_colors: dict = None, job_id: str = None) -> BytesIO:
+                         brand_colors: dict = None, job_id: str = None, **kwargs) -> BytesIO:
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
@@ -453,6 +471,44 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
     buffer.seek(0)
     return buffer
 
+def _add_toc_field(doc):
+    """Inserts a real Word Table of Contents field, scanning Heading 1-3 styled
+    paragraphs and generating hyperlinked entries with real page numbers — unlike a
+    hardcoded list of section names, this is an actual Word field. It will show a
+    placeholder until the document is opened in Word and the field is updated
+    (right-click -> Update Field, or Word may prompt automatically on open) — python-docx
+    has no way to know pagination in advance, since that only happens when Word actually
+    lays out the document."""
+    from docx.oxml.ns import qn as _qn
+    paragraph = doc.add_paragraph()
+    run = paragraph.add_run()
+
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(_qn("w:fldCharType"), "begin")
+    fld_begin.set(_qn("w:dirty"), "true")
+
+    instr_text = OxmlElement("w:instrText")
+    instr_text.set(_qn("xml:space"), "preserve")
+    instr_text.text = 'TOC \\o "1-3" \\h \\z \\u'
+
+    fld_separate = OxmlElement("w:fldChar")
+    fld_separate.set(_qn("w:fldCharType"), "separate")
+
+    placeholder_run_text = OxmlElement("w:t")
+    placeholder_run_text.text = "Right-click and select 'Update Field' to generate the Table of Contents."
+
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(_qn("w:fldCharType"), "end")
+
+    r_element = run._r
+    r_element.append(fld_begin)
+    r_element.append(instr_text)
+    r_element.append(fld_separate)
+    r_element.append(placeholder_run_text)
+    r_element.append(fld_end)
+
+    return paragraph
+
 def _add_page_numbers(doc: Document):
     """Adds 'Page X of Y' to the footer of every section — a real Word field, not static text."""
     from docx.oxml.ns import qn as _qn
@@ -482,6 +538,226 @@ def _add_page_numbers(doc: Document):
         _add_field(para, "PAGE")
         para.add_run(" of ")
         _add_field(para, "NUMPAGES")
+def _add_watermark(doc: Document, logo_bytes: bytes, width_inches: float = 4.2):
+    """Adds the organization logo as a large, washed-out watermark centered on every page.
+    Uses the legacy VML <w:pict> markup in the header rather than a hand-built DrawingML
+    anchor — this is what Word's own 'Insert Watermark > Picture Watermark' feature actually
+    generates, and renders far more reliably across Word versions than a floating DrawingML
+    picture built from scratch. gain/blacklevel on v:imagedata replicate the washed-out look."""
+    if not logo_bytes:
+        return
+
+    # VML namespaces aren't in python-docx's default prefix map — register them once so
+    # qn("v:...") / qn("o:...") resolve. Safe no-op on repeat calls (setdefault).
+    from docx.oxml.ns import nsmap as _nsmap
+    _nsmap.setdefault("v", "urn:schemas-microsoft-com:vml")
+    _nsmap.setdefault("o", "urn:schemas-microsoft-com:office:office")
+
+    section = doc.sections[0]
+    header = section.header
+    header.is_linked_to_previous = False
+    # Dedicated paragraph for the watermark, separate from the header's logo/qualification-name
+    # paragraph — sharing a paragraph caused both pictures to get the same docPr id, which made
+    # Word silently drop one of them.
+    watermark_para = header.add_paragraph()
+    watermark_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    run = watermark_para.add_run()
+    run.add_picture(BytesIO(logo_bytes), width=Inches(width_inches))
+
+    # add_picture() creates a modern <w:drawing> (DrawingML); pull the relationship id it
+    # just created for the embedded image, then swap the drawing for the legacy VML <w:pict>
+    # watermark markup, reusing that same image relationship.
+    drawing = run._element.find(qn("w:drawing"))
+    blip = drawing.find(f".//{qn('a:blip')}")
+    r_id = blip.get(qn("r:embed"))
+
+    width_pt = int(width_inches * 72)
+
+    pict = OxmlElement("w:pict")
+    shape = OxmlElement("v:shape")
+    shape.set("id", "WatermarkShape")
+    shape.set("type", "#_x0000_t75")
+    shape.set("style", (
+        f"position:absolute;left:0;text-align:left;margin-left:0;margin-top:0;"
+        f"width:{width_pt}pt;height:{width_pt}pt;z-index:-251658240;"
+        f"mso-position-horizontal:center;mso-position-horizontal-relative:margin;"
+        f"mso-position-vertical:center;mso-position-vertical-relative:margin"
+    ))
+    shape.set(qn("o:allowoverlap"), "f")
+
+    imagedata = OxmlElement("v:imagedata")
+    imagedata.set(qn("r:id"), r_id)
+    imagedata.set(qn("o:title"), "")
+    imagedata.set("gain", "19661f")
+    imagedata.set("blacklevel", "22938f")
+
+    shape.append(imagedata)
+    pict.append(shape)
+
+    run._element.remove(drawing)
+    run._element.append(pict)
+
+
+def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualification_name: str = None,
+                                organization_name: str = None, primary_hex: str = None,
+                                watermark: bool = True, accreditation_info: dict = None,
+                                document_label: str = None):
+    """Full branded page treatment applied once, reused across every document type: a small
+    logo + qualification name in the header with a thin rule, 'Organization — Page X of Y' in
+    the footer, and (optionally) the organization logo as a faint watermark behind the text.
+    Superset of _add_page_numbers — call this instead when logo/qualification context is
+    available; falls back gracefully to page-numbers-only if logo_bytes/qualification_name
+    aren't supplied. When accreditation_info contains a recognized "seta" slug and that
+    SETA's logo file exists, the header instead shows a second logo (the SETA's) on the
+    opposite side from the organization's logo, with centered text between them showing
+    the SETA name, qualification name, document type, qualification code, SAQA ID (if
+    present), and NQF level. Callers that don't pass accreditation_info/document_label get
+    the original single-logo layout, unchanged."""
+    section = doc.sections[0]
+    color_hex = (primary_hex or DEFAULT_PRIMARY).lstrip("#").upper()
+
+    # Cover page (page 1) gets none of this — matches the reference material, where the
+    # cover has no footer bar or header logo, only content pages from page 2 onward do.
+    section.different_first_page_header_footer = True
+
+    accreditation_info = accreditation_info or {}
+    seta_slug = accreditation_info.get("seta")
+    seta_logo_bytes = None
+    seta_name = None
+    if seta_slug:
+        from app.services.seta_constants import get_seta_name, get_seta_logo_path
+        seta_logo_path = get_seta_logo_path(seta_slug)
+        if seta_logo_path and os.path.exists(seta_logo_path):
+            with open(seta_logo_path, "rb") as f:
+                seta_logo_bytes = f.read()
+        seta_name = get_seta_name(seta_slug)
+
+    if logo_bytes or qualification_name or seta_logo_bytes:
+        header = section.header
+        header.is_linked_to_previous = False
+        header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+        header_para.text = ""
+
+        if seta_logo_bytes:
+            # Two-column-text-plus-images layout via a borderless table — a plain paragraph
+            # with tab stops can't reliably center content between two images of different
+            # widths, so a 3-column table gives precise control: org logo | centered text |
+            # SETA logo.
+            header_table = header.add_table(rows=1, cols=3, width=Inches(6.5))
+            header_table.autofit = False
+            header_table.columns[0].width = Inches(1.2)
+            header_table.columns[1].width = Inches(4.1)
+            header_table.columns[2].width = Inches(1.2)
+            for row in header_table.rows:
+                for cell in row.cells:
+                    tcPr = cell._tc.get_or_add_tcPr()
+                    borders = OxmlElement("w:tcBorders")
+                    for edge in ("top", "left", "bottom", "right"):
+                        edge_el = OxmlElement(f"w:{edge}")
+                        edge_el.set(qn("w:val"), "nil")
+                        borders.append(edge_el)
+                    tcPr.append(borders)
+
+            left_cell, center_cell, right_cell = header_table.rows[0].cells
+
+            if logo_bytes:
+                left_p = left_cell.paragraphs[0]
+                left_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+                left_run = left_p.add_run()
+                left_run.add_picture(BytesIO(logo_bytes), height=Inches(0.25))
+
+            center_p = center_cell.paragraphs[0]
+            center_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            center_lines = []
+            if seta_name:
+                center_lines.append(seta_name)
+            if qualification_name:
+                center_lines.append(qualification_name)
+            if document_label:
+                center_lines.append(document_label)
+            code_parts = []
+            if accreditation_info.get("qualification_code"):
+                code_parts.append(str(accreditation_info["qualification_code"]))
+            if accreditation_info.get("saqa_id"):
+                code_parts.append(f"SAQA ID: {accreditation_info['saqa_id']}")
+            if accreditation_info.get("nqf_level"):
+                code_parts.append(f"NQF {accreditation_info['nqf_level']}")
+            if code_parts:
+                center_lines.append(" | ".join(code_parts))
+
+            for i, line in enumerate(center_lines):
+                p = center_p if i == 0 else center_cell.add_paragraph()
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.paragraph_format.space_before = Pt(0)
+                p.paragraph_format.space_after = Pt(0)
+                run = p.add_run(line)
+                run.font.size = Pt(7 if i > 0 else 8)
+                run.bold = (i == 0)
+                run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
+
+            right_p = right_cell.paragraphs[0]
+            right_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            right_run = right_p.add_run()
+            right_run.add_picture(BytesIO(seta_logo_bytes), height=Inches(0.25))
+
+            _add_bottom_border(header_para, color_hex, size="6")
+        else:
+            # Original single-logo-plus-qualification-name layout — unchanged, for callers
+            # that haven't been updated to pass accreditation_info/document_label yet.
+            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if logo_bytes:
+                logo_run = header_para.add_run()
+                logo_run.add_picture(BytesIO(logo_bytes), height=Inches(0.45))
+                header_para.add_run("   ")
+            if qualification_name:
+                qual_run = header_para.add_run(qualification_name)
+                qual_run.bold = True
+                qual_run.font.size = Pt(10)
+                qual_run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
+            _add_bottom_border(header_para, color_hex, size="6")
+
+    # Footer: organization name (left) + Page X of Y (right), on one line via tab stops
+    footer = section.footer
+    footer.is_linked_to_previous = False
+    footer_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    footer_para.text = ""
+    from docx.enum.text import WD_TAB_ALIGNMENT
+    footer_para.paragraph_format.tab_stops.add_tab_stop(Inches(6.5), WD_TAB_ALIGNMENT.RIGHT)
+
+    if organization_name:
+        org_run = footer_para.add_run(organization_name)
+        org_run.font.size = Pt(9)
+        org_run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
+
+    footer_para.add_run("\t")
+
+    from docx.oxml.ns import qn as _qn
+
+    def _add_field(paragraph, field_code):
+        run_el = OxmlElement("w:r")
+        fld_begin = OxmlElement("w:fldChar")
+        fld_begin.set(_qn("w:fldCharType"), "begin")
+        instr = OxmlElement("w:instrText")
+        instr.set(_qn("xml:space"), "preserve")
+        instr.text = field_code
+        fld_end = OxmlElement("w:fldChar")
+        fld_end.set(_qn("w:fldCharType"), "end")
+        run_el.append(fld_begin)
+        run_el.append(instr)
+        run_el.append(fld_end)
+        paragraph._p.append(run_el)
+
+    page_label_run = footer_para.add_run("Page ")
+    page_label_run.font.size = Pt(9)
+    _add_field(footer_para, "PAGE")
+    of_run = footer_para.add_run(" of ")
+    of_run.font.size = Pt(9)
+    _add_field(footer_para, "NUMPAGES")
+
+    if watermark and logo_bytes:
+        _add_watermark(doc, logo_bytes)
+
 
 def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organization_name: str,
                           logo_bytes: bytes, primary, primary_hex: str, secondary):

@@ -4,7 +4,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_assessment_questions
-from app.services.document_service import _add_page_numbers
+from app.services.document_service import _add_branded_header_footer
 
 DEFAULT_PRIMARY = "1A5276"
 
@@ -73,7 +73,7 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
                     opt_para.paragraph_format.left_indent = Inches(0.4)
                     opt_para.add_run(f"{letter}) {option}")
             else:
-                blank_lines = q.get("blank_lines", 2)
+                blank_lines = max(q.get("blank_lines", 2), min(round(q.get("marks", 0) * 0.8), 8))
                 for _ in range(blank_lines):
                     line_para = doc.add_paragraph()
                     line_para.add_run("_" * 80)
@@ -89,7 +89,7 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
     from app.services.document_service import _add_signature_block
     _add_signature_block(doc)
 
-    _add_page_numbers(doc)
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=title, organization_name=organization_name, primary_hex=primary_hex)
 
     buffer = BytesIO()
     doc.save(buffer)

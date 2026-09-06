@@ -17,15 +17,31 @@
     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
-    View Original Uploaded File
+      View Original Uploaded File
+</a>
+{% endif %}
+{% if syllabus.syllabus_type == 'qcto' and syllabus.status != 'processing' %}
+<a href="{{ url_for('syllabus_web.edit_syllabus', syllabus_id=syllabus.id) }}" class="text-signal text-sm hover:underline inline-flex items-center gap-1 mt-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+    Edit Module/Topic Structure
 </a>
 {% endif %}
 </div>
 
 {% if syllabus.status == 'processing' %}
-<div class="bg-blue-50 border-l-4 border-signal text-navy-950 px-4 py-3 rounded mb-6 text-sm flex items-center gap-2">
-    <span class="inline-block w-4 h-4 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
-    This curriculum is still processing — you'll be notified once it's ready.
+<div class="bg-blue-50 border-l-4 border-signal text-navy-950 px-4 py-3 rounded mb-6 text-sm flex items-center justify-between gap-2">
+    <div class="flex items-center gap-2">
+        <span class="inline-block w-4 h-4 border-2 border-signal border-t-transparent rounded-full animate-spin"></span>
+        This curriculum is still processing — you'll be notified once it's ready.
+    </div>
+    <form method="POST" action="{{ url_for('syllabus_web.cancel_processing', syllabus_id=syllabus.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="text-red-600 hover:text-red-700 font-medium text-sm underline">
+            Cancel Processing
+        </button>
+    </form>
 </div>
 {% elif syllabus.status == 'failed' %}
 <div class="bg-red-50 border-l-4 border-red-500 text-red-800 px-4 py-3 rounded mb-6 text-sm">
@@ -59,20 +75,77 @@
             </div>
             {% if module_type == 'KM' %}
                 <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Topics ({{ module.get('topics', [])|length }})</p>
-                <ul class="list-disc list-inside space-y-1">
-                    {% for topic in module.get('topics', []) %}
-                    <li class="text-steel-600 text-sm">{{ topic.get('topic_code', '') }} — {{ topic.get('title', '') }}</li>
+                {% for topic in module.get('topics', []) %}
+                <div class="mb-4 pl-3 border-l-2 border-steel-200">
+                    <p class="text-steel-800 text-sm font-medium">
+                        {{ topic.get('topic_code', '') }} — {{ topic.get('title', '') }}
+                        {% if topic.get('weight') %}<span class="text-steel-400 font-normal">({{ topic.get('weight') }})</span>{% endif %}
+                    </p>
+                    {% if topic.get('elements') %}
+                    <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-2 mb-1">Topic Elements</p>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        {% for el in topic.get('elements', []) %}
+                        <li class="text-steel-600 text-sm">
+                            {% if el is mapping %}
+                                {% if el.get('code') %}<span class="text-steel-400 font-mono text-xs">{{ el.get('code') }}</span> — {% endif %}{{ el.get('text', '') }}
+                            {% else %}
+                                {{ el }}
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if topic.get('guidelines') %}
+                    <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-2 mb-1">Guidelines</p>
+                    <p class="text-steel-600 text-sm">{{ topic.get('guidelines') }}</p>
+                    {% endif %}
+                    {% if topic.get('assessment_criteria') %}
+                    <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-2 mb-1">Internal Assessment Criteria (IAC)</p>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        {% for iac in topic.get('assessment_criteria', []) %}
+                        <li class="text-steel-600 text-sm">{{ iac }}</li>
+                        {% endfor %}
+                    </ul>
                     {% else %}
-                    <li class="text-steel-400 text-sm">No topics extracted yet.</li>
-                    {% endfor %}
-                </ul>
+                    <p class="text-xs text-red-500 mt-2">No Internal Assessment Criteria extracted for this topic.</p>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-steel-400 text-sm">No topics extracted yet.</p>
+                {% endfor %}
             {% elif module_type == 'PM' %}
                 <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Performance Assessment</p>
                 <ul class="list-disc list-inside space-y-1">
                     {% for pa in module.get('performance_assessment', []) %}
-                    <li class="text-steel-600 text-sm">{{ pa }}</li>
+                    <li class="text-steel-600 text-sm">
+                        {% if pa is mapping %}
+                            {% if pa.get('code') %}<span class="text-steel-400 font-mono text-xs">{{ pa.get('code') }}</span> — {% endif %}{{ pa.get('text', '') }}
+                        {% else %}
+                            {{ pa }}
+                        {% endif %}
+                    </li>
                     {% else %}
                     <li class="text-steel-400 text-sm">None extracted yet.</li>
+                    {% endfor %}
+                </ul>
+                {% if module.get('applied_knowledge') %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-3 mb-2">Applied Knowledge</p>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for ak in module.get('applied_knowledge', []) %}
+                    <li class="text-steel-600 text-sm">{{ ak }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% if module.get('guidelines') %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-3 mb-2">Guidelines</p>
+                <p class="text-steel-600 text-sm">{{ module.get('guidelines') }}</p>
+                {% endif %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-3 mb-2">Internal Assessment Criteria (IAC)</p>
+                <ul class="list-disc list-inside space-y-1">
+                    {% for iac in module.get('assessment_criteria', []) %}
+                    <li class="text-steel-600 text-sm">{{ iac }}</li>
+                    {% else %}
+                    <li class="text-red-500 text-sm">No Internal Assessment Criteria extracted for this module.</li>
                     {% endfor %}
                 </ul>
             {% elif module_type == 'WM' %}
@@ -84,6 +157,10 @@
                     <li class="text-steel-400 text-sm">None extracted yet.</li>
                     {% endfor %}
                 </ul>
+                {% if module.get('guidelines') %}
+                <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mt-3 mb-2">Guidelines</p>
+                <p class="text-steel-600 text-sm">{{ module.get('guidelines') }}</p>
+                {% endif %}
             {% endif %}
         </div>
         {% endfor %}

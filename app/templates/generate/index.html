@@ -27,23 +27,30 @@
                 <option value="textbook">Textbook (Word)</option>
                 <option value="presentation">Presentation (PowerPoint)</option>
                 <option value="assessment">Assessment</option>
-                <option value="learner_manual">Learner Manual</option>
                 <option value="facilitator_guide">Facilitator Guide</option>
-                <option value="formative_assessment">Formative Assessment</option>
-                <option value="summative_assessment">Summative Assessment</option>
-                <option value="assessment_guide">Assessment Guide</option>
-                <option value="moderator_guide">Moderator Guide</option>
                 <option value="poe_guide">Portfolio of Evidence Guide</option>
-                <option value="learner_induction_guide">Learner Induction Guide</option>
-                <option value="programme_strategy">Programme Strategy</option>
                 <option value="programme_alignment_matrix">Programme Alignment Matrix</option>
-                <option value="qcto_knowledge_modules">QCTO Knowledge Modules</option>
-                <option value="qcto_practical_modules">QCTO Practical Modules</option>
-                <option value="qcto_workplace_modules">QCTO Workplace Modules</option>
-                <option value="qcto_workplace_logbook">QCTO Workplace Logbook</option>
-                <option value="qcto_video_guide">QCTO Video Guide</option>
-                <option value="qcto_km_assessment">QCTO Knowledge Modules Assessment</option>
-                <option value="qcto_pm_assessment">QCTO Practical Modules Assessment</option>
+                <option value="qcto_knowledge_modules">KM Learner Guide</option>
+                <option value="qcto_practical_modules">PM Learner Guide</option>
+                <option value="qcto_workplace_modules">WM Learner Guide</option>
+                <option value="qcto_workplace_logbook">WM Logbook</option>
+                <option value="qcto_video_guide">Video Guide</option>
+                <option value="qcto_km_assessment">KM Assessment</option>
+                <option value="qcto_pm_assessment">PM Assessment</option>
+                <option value="qcto_km_facilitator_guide">KM Facilitator Guide</option>
+                <option value="qcto_km_assessment_guide">KM Assessment Guide</option>
+                <option value="qcto_km_poe">KM Portfolio of Evidence</option>
+                <option value="qcto_km_learner_workbook">KM Learner Workbook</option>
+                <option value="qcto_isa">ISA Traceability Document</option>
+                <option value="qcto_pm_facilitator_guide">PM Facilitator Guide</option>
+                <option value="qcto_pm_assessment_guide">PM Assessment Guide</option>
+                <option value="qcto_pm_poe">PM Portfolio of Evidence</option>
+                <option value="qcto_wm_supervisor_guide">WM Guide for Industry Supervisors</option>
+                <option value="qcto_final_exam">Final Exam</option>
+                <option value="qcto_fisa">FISA (Final Integrated Summative Assessment)</option>
+                <option value="qcto_learning_matrix">Learning Matrix</option>
+                <option value="qcto_km_powerpoint">KM PowerPoint (per module, ZIP)</option>
+                <option value="qcto_pm_powerpoint">PM PowerPoint (per module, ZIP)</option>
             </select>
         </div>
         <button type="submit" class="bg-navy-950 text-white px-6 py-2 rounded font-medium hover:bg-navy-900 transition text-sm">Generate</button>
@@ -64,8 +71,9 @@
             <select name="package_type" required onchange="filterPackageSyllabi()" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
                 <option value="" disabled selected>Select a package type...</option>
                 <option value="masterclass">Masterclass (Textbook + Slides + Assessment)</option>
-                <option value="full_training_set">Full Training Set (11 documents)</option>
-                <option value="qcto_full_set">QCTO Full Set (KM + PM + WM + Assessments + Video Guide)</option>
+                <option value="qcto_full_set">Full Qualification (KM + PM + WM + Assessments + Video Guide)</option>
+                <option value="qcto_part_qualification">Part Qualification (Full Set + Learning Matrix)</option>
+                <option value="qcto_skills_programme">Skills Programme (Full Set + FISA, no ISA/Final Exam)</option>
             </select>
         </div>
         <button type="submit" class="bg-signal text-white px-6 py-2 rounded font-medium hover:opacity-90 transition text-sm">Generate Package</button>
@@ -147,8 +155,24 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="text-red-600 font-medium hover:underline text-xs">Cancel</button>
                         </form>
-                    {% elif job.status == 'cancelled' %}
+                                        {% elif job.status == 'cancelled' %}
                         <span class="text-steel-400 text-xs">Cancelled</span>
+                        <form method="POST" action="{{ url_for('generation_web.retry', job_id=job.id) }}" class="inline ml-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-signal font-medium hover:underline text-xs">Retry</button>
+                        </form>
+                                        {% elif job.status == 'failed' %}
+                        <span class="text-red-600 text-xs font-medium">Generation failed</span>
+                        <form method="POST" action="{{ url_for('generation_web.retry', job_id=job.id) }}" class="inline ml-2">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="text-signal font-medium hover:underline text-xs">Retry</button>
+                        </form>
+                        {% if job.error_message %}
+                        <details class="inline ml-2">
+                            <summary class="text-steel-400 text-xs cursor-pointer hover:underline inline">View Log</summary>
+                            <div class="text-steel-500 text-xs mt-1 max-w-md break-words">{{ job.error_message }}</div>
+                        </details>
+                        {% endif %}
                     {% else %}
                         <span class="text-steel-400 text-xs">—</span>
                     {% endif %}

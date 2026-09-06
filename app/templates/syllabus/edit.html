@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Edit Syllabus{% endblock %}
+{% block content %}
+<div class="mb-8 pb-6 border-b border-steel-200">
+    <a href="{{ url_for('syllabus_web.detail', syllabus_id=syllabus.id) }}" class="text-signal text-sm hover:underline">&larr; {{ syllabus.title }}</a>
+    <h1 class="text-xl font-semibold text-navy-950 mt-1">Edit Syllabus Structure</h1>
+    <p class="text-steel-500 mt-1 text-sm">Edit module and topic titles, or add/remove topics. Changes apply to future document generations from this syllabus.</p>
+</div>
+
+<form method="POST" action="{{ url_for('syllabus_web.edit_syllabus', syllabus_id=syllabus.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    {% for module in syllabus.content.get('modules', []) %}
+    {% set m_idx = loop.index0 %}
+    <div class="bg-white rounded-lg border border-steel-200 p-6 mb-4">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-semibold text-steel-400 uppercase tracking-wide">{{ module.get('module_type', '') }} &middot; {{ module.get('module_code', '') }}</span>
+        </div>
+        <label class="block text-sm font-medium text-steel-500 mb-1.5">Module Title</label>
+        <input type="text" name="module-{{ m_idx }}-title" value="{{ module.get('title', '') }}" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950 font-medium focus:outline-none focus:ring-2 focus:ring-signal mb-4">
+
+        {% if module.get('module_type') == 'KM' %}
+        <p class="text-xs font-medium text-steel-500 uppercase tracking-wide mb-2">Topics</p>
+        <div id="topics-container-{{ m_idx }}">
+            {% for topic in module.get('topics', []) %}
+            {% set t_idx = loop.index0 %}
+            <div class="flex items-center gap-2 mb-2" id="topic-row-{{ m_idx }}-{{ t_idx }}">
+                <span class="text-xs text-steel-400 w-20 shrink-0">{{ topic.get('topic_code', '') }}</span>
+                <input type="text" name="module-{{ m_idx }}-topic-{{ t_idx }}-title" value="{{ topic.get('title', '') }}" class="flex-1 border border-steel-200 rounded px-3 py-1.5 text-sm text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+                <input type="hidden" name="module-{{ m_idx }}-topic-{{ t_idx }}-delete" id="topic-delete-{{ m_idx }}-{{ t_idx }}" value="0">
+                <button type="button" onclick="removeTopic({{ m_idx }}, {{ t_idx }})" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="new-topics-container-{{ m_idx }}" class="mt-2"></div>
+        <button type="button" onclick="addTopic({{ m_idx }})" class="text-signal text-xs font-medium hover:underline mt-2">+ Add Topic</button>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="flex gap-3 mt-6">
+        <button type="submit" class="px-5 py-2 rounded bg-navy-950 text-white text-sm font-medium hover:bg-navy-900">Save Changes</button>
+        <a href="{{ url_for('syllabus_web.detail', syllabus_id=syllabus.id) }}" class="px-5 py-2 rounded border border-steel-200 text-steel-500 text-sm font-medium hover:bg-steel-50">Cancel</a>
+    </div>
+</form>
+
+<script>
+function removeTopic(mIdx, tIdx) {
+    document.getElementById(`topic-delete-${mIdx}-${tIdx}`).value = "1";
+    document.getElementById(`topic-row-${mIdx}-${tIdx}`).style.display = "none";
+}
+
+function addTopic(mIdx) {
+    const container = document.getElementById(`new-topics-container-${mIdx}`);
+    const row = document.createElement("div");
+    row.className = "flex items-center gap-2 mb-2";
+    row.innerHTML = `
+        <span class="text-xs text-steel-400 w-20 shrink-0">(new)</span>
+        <input type="text" name="module-${mIdx}-new-topic-title[]" placeholder="New topic title" class="flex-1 border border-steel-200 rounded px-3 py-1.5 text-sm text-navy-950 focus:outline-none focus:ring-2 focus:ring-signal">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-700 text-xs font-medium underline shrink-0">Remove</button>
+    `;
+    container.appendChild(row);
+}
+</script>
+{% endblock %}
