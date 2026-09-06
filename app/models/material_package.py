@@ -45,8 +45,9 @@ PACKAGE_DOCUMENTS = {
         "qcto_video_guide",
         "qcto_km_assessment",
         "qcto_pm_assessment",
-            "qcto_isa",
+        "qcto_isa",
         "qcto_final_exam",
+        "qcto_learning_matrix",
     ],
     # Part Qualification: same document set as Full Qualification, plus a Learning Matrix
     # (not yet built — this list is identical to qcto_full_set as an interim placeholder
