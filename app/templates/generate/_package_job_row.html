@@ -1,5 +1,5 @@
 <tr class="border-b border-steel-100" data-job-id="{{ job.id }}">
-    <td class="px-6 py-3 text-navy-950 font-medium capitalize">{{ job.document_subtype.replace('_', ' ') }}</td>
+    <td class="px-6 py-3 text-navy-950 font-medium">{{ job.document_subtype | document_display_name }}</td>
     <td class="px-6 py-3">
         <span class="package-job-status inline-flex items-center gap-1.5 text-xs font-medium
             {% if job.status == 'done' %}text-green-700

@@ -1,6 +1,6 @@
 <tr class="border-b border-steel-100" data-job-id="{{ job.id }}">
     <td class="px-6 py-3 text-navy-950 font-medium">{{ syllabus_title }}</td>
-    <td class="px-6 py-3 text-steel-500 capitalize">{{ job.material_type }}</td>
+    <td class="px-6 py-3 text-steel-500">{{ job.material_type | document_display_name }}</td>
     <td class="px-6 py-3">
         <span class="job-status-label inline-flex items-center gap-1.5 text-xs font-medium
             {% if job.status == 'done' %}text-green-700

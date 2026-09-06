@@ -95,6 +95,10 @@ def create_app(config_name=None):
 
     celery_app.Task = ContextTask
 
+    from app.services.seta_constants import document_display_name
+    app.jinja_env.filters["document_display_name"] = document_display_name
+
+
     @app.context_processor
     def inject_nav_avatar():
         from flask_login import current_user

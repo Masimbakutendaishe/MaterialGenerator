@@ -42,3 +42,47 @@ def get_seta_logo_path(slug: str) -> str:
     if slug not in SETA_CHOICES:
         return ""
     return f"app/static/seta_logos/{slug}.png"
+
+# Friendly display names for document/material subtypes, used consistently across the
+# document-type dropdown and the generation status tables — a single source of truth so
+# these can't drift out of sync with each other again.
+DOCUMENT_DISPLAY_NAMES = {
+    "textbook": "Textbook (Word)",
+    "presentation": "Presentation (PowerPoint)",
+    "assessment": "Assessment",
+    "facilitator_guide": "Facilitator Guide",
+    "poe_guide": "Portfolio of Evidence Guide",
+    "programme_alignment_matrix": "Programme Alignment Matrix",
+    "qcto_knowledge_modules": "KM Learner Guide",
+    "qcto_practical_modules": "PM Learner Guide",
+    "qcto_workplace_modules": "WM Learner Guide",
+    "qcto_workplace_logbook": "WM Logbook",
+    "qcto_video_guide": "Video Guide",
+    "qcto_km_assessment": "KM Assessment",
+    "qcto_pm_assessment": "PM Assessment",
+    "qcto_km_facilitator_guide": "KM Facilitator Guide",
+    "qcto_km_assessment_guide": "KM Assessment Guide",
+    "qcto_km_poe": "KM Portfolio of Evidence",
+    "qcto_km_learner_workbook": "KM Learner Workbook",
+    "qcto_isa": "ISA Traceability Document",
+    "qcto_pm_facilitator_guide": "PM Facilitator Guide",
+    "qcto_pm_assessment_guide": "PM Assessment Guide",
+    "qcto_pm_poe": "PM Portfolio of Evidence",
+    "qcto_wm_supervisor_guide": "WM Guide for Industry Supervisors",
+    "qcto_final_exam": "Final Exam",
+    "qcto_fisa": "FISA (Final Integrated Summative Assessment)",
+    "qcto_learning_matrix": "Learning Matrix",
+    "qcto_km_powerpoint": "KM PowerPoint (per module, ZIP)",
+    "qcto_pm_powerpoint": "PM PowerPoint (per module, ZIP)",
+}
+
+
+def document_display_name(value):
+    """Looks up the friendly display name for a document type value, falling back to a
+    title-cased, underscore-replaced version for any type not in the mapping (so a
+    newly-added document type never renders as a raw, unreadable value)."""
+    if not value:
+        return ""
+    if value in DOCUMENT_DISPLAY_NAMES:
+        return DOCUMENT_DISPLAY_NAMES[value]
+    return value.replace("_", " ").replace("qcto ", "").title()
