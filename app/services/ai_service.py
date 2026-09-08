@@ -251,7 +251,27 @@ def structure_syllabus_from_text(raw_text: str, seta: str = None, nqf_level: str
         chunk_results = [r if r is not None else [] for r in chunk_results]
         units = _merge_extracted_units(chunk_results)
 
+        units = _ensure_outcomes(units)
     return {"units": _renumber_units(units)}
+
+
+def _ensure_outcomes(units: list) -> list:
+    """Recursively ensures every unit and subtopic has at least one outcome, filling in
+    a reasonable generic fallback based on the title when the AI left it empty despite
+    the prompt instruction requiring outcomes — a defensive backstop, since a prompt
+    instruction alone doesn't guarantee full compliance on every response."""
+    result = []
+    for unit in units:
+        new_unit = dict(unit)
+        outcomes = new_unit.get("outcomes") or []
+        if not outcomes:
+            title = new_unit.get("name", "").split(":", 1)[-1].strip() or "this topic"
+            outcomes = [f"Understand the key concepts and principles of {title}."]
+        new_unit["outcomes"] = outcomes
+        if new_unit.get("subtopics"):
+            new_unit["subtopics"] = _ensure_outcomes(new_unit["subtopics"])
+        result.append(new_unit)
+    return result
 
 
 def _renumber_units(units: list) -> list:
