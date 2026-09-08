@@ -218,20 +218,22 @@ def create_upload():
         flash("Your curriculum is being processed in the background - you'll be notified once it's ready.")
         return redirect(url_for("syllabus_web.list_syllabi"))
 
-    # Standard uploads are fast enough to stay synchronous
-    try:
-        content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
-    except RuntimeError as exc:
-        flash(f"AI structuring failed: {exc}")
-        return redirect(url_for("syllabus_web.new"))
+    # Standard uploads were previously kept synchronous, but a long or multi-chunk
+    # document being extracted via AI could still exceed the platform's gateway
+    # timeout, causing a 502 while leaving the browser's modal stuck saying
+    # "Generating" indefinitely. Moved to background processing, matching the QCTO
+    # upload path, so the request returns immediately and the row-level spinner
+    # reflects real progress instead.
+    from app.tasks.syllabus_tasks import process_standard_syllabus_task
 
     syllabus = Syllabus(
         organization_id=current_user.organization_id,
         created_by_user_id=current_user.id,
         title=title,
         source="uploaded",
-        content=content,
+        content={},
         syllabus_type="standard",
+        status="processing",
         accreditation_info={"seta": seta, "nqf_level": nqf_level, "saqa_id": saqa_id},
     )
     db.session.add(syllabus)
@@ -243,8 +245,10 @@ def create_upload():
     syllabus.original_file_key = file_key
     db.session.commit()
 
-    flash(f"Syllabus '{title}' created successfully.")
-    return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus.id))
+    process_standard_syllabus_task.delay(syllabus.id, raw_text, seta, nqf_level)
+
+    flash("Your syllabus is being processed in the background — you'll be notified once it's ready.")
+    return redirect(url_for("syllabus_web.list_syllabi"))
 
 
 @syllabus_web_bp.route("/create-ai", methods=["POST"])

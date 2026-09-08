@@ -103,6 +103,37 @@ def process_qcto_syllabus_task(syllabus_id: str, raw_text: str):
         syllabus.content = {"error": str(exc)}
         db.session.commit()
 
+@celery_app.task(name="process_standard_syllabus_task")
+def process_standard_syllabus_task(syllabus_id: str, raw_text: str, seta: str = None, nqf_level: str = None):
+    from app.services.ai_service import structure_syllabus_from_text
+
+    syllabus = Syllabus.query.get(syllabus_id)
+    if not syllabus:
+        return
+
+    try:
+        content = structure_syllabus_from_text(raw_text, seta=seta, nqf_level=nqf_level)
+
+        db.session.expire_all()
+        fresh = Syllabus.query.get(syllabus_id)
+        if fresh is not None and fresh.status == "cancelled":
+            return
+
+        syllabus.content = content
+        syllabus.status = "draft"
+
+        from app.models.review import Notification
+        db.session.add(Notification(
+            recipient_user_id=syllabus.created_by_user_id,
+            message=f'Your syllabus "{syllabus.title}" has finished processing.',
+        ))
+        db.session.commit()
+    except Exception as exc:
+        syllabus.status = "failed"
+        syllabus.content = {"error": str(exc)}
+        db.session.commit()
+
+
 @celery_app.task(name="process_ai_generate_syllabus_task")
 def process_ai_generate_syllabus_task(syllabus_id: str, topic: str, seta: str = None, nqf_level: str = None):
     from app.services.ai_service import generate_syllabus
