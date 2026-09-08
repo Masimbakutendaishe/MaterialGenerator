@@ -1,4 +1,4 @@
-"""Wraps all AI provider calls. Nothing else in the app should import anthropic/groq/etc
+﻿"""Wraps all AI provider calls. Nothing else in the app should import anthropic/groq/etc
 directly — this is the one place provider SDKs are touched."""
 import json
 import time
@@ -241,15 +241,38 @@ def structure_syllabus_from_text(raw_text: str, seta: str = None, nqf_level: str
     chunks = _chunk_text_with_overlap(raw_text)
 
     if len(chunks) == 1:
-        return {"units": _structure_syllabus_chunk(chunks[0], context_lines)}
+        units = _structure_syllabus_chunk(chunks[0], context_lines)
+    else:
+        chunk_results = parallel_map(
+            chunks,
+            lambda chunk: _structure_syllabus_chunk(chunk, context_lines),
+            max_workers=3,
+        )
+        chunk_results = [r if r is not None else [] for r in chunk_results]
+        units = _merge_extracted_units(chunk_results)
 
-    chunk_results = parallel_map(
-        chunks,
-        lambda chunk: _structure_syllabus_chunk(chunk, context_lines),
-        max_workers=3,
-    )
-    chunk_results = [r if r is not None else [] for r in chunk_results]
-    return {"units": _merge_extracted_units(chunk_results)}
+    return {"units": _renumber_units(units)}
+
+
+def _renumber_units(units: list) -> list:
+    """Replaces whatever unit numbering the AI produced with a clean, sequential
+    "Unit N: <title>" numbering based on final position in the list. This is necessary
+    because each chunk is processed by an independent AI call with no awareness of what
+    number a previous chunk ended on, so multi-chunk documents previously ended up with
+    numbering that restarted from "Unit 1" several times over, or units with no number
+    at all — this makes the final numbering correct and consistent regardless of how
+    many chunks the document was split into."""
+    import re
+    renumbered = []
+    for i, unit in enumerate(units, start=1):
+        name = (unit.get("name") or "").strip()
+        cleaned = re.sub(r"^unit\s*[\d.]*\s*:\s*", "", name, flags=re.IGNORECASE).strip()
+        if not cleaned:
+            cleaned = name
+        new_unit = dict(unit)
+        new_unit["name"] = f"Unit {i}: {cleaned}"
+        renumbered.append(new_unit)
+    return renumbered
 
 def _get_redis_client():
     """Reuses Celery's own broker connection info (already proven working, since Celery
