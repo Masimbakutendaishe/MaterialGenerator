@@ -309,7 +309,9 @@ def _set_default_font(doc: Document):
 
 def build_textbook_docx(title: str, units: list, organization_name: str = None,
                          seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
-                         brand_colors: dict = None, job_id: str = None, **kwargs) -> BytesIO:
+                         brand_colors: dict = None, job_id: str = None,
+                         accreditation_info: dict = None, **kwargs) -> BytesIO:
+    accreditation_info = accreditation_info or {}
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
@@ -328,12 +330,12 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
     # Vertical spacing to center the cover content
     for _ in range(4):
         doc.add_paragraph()
-
     if logo_bytes:
         logo_para = doc.add_paragraph()
         logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = logo_para.add_run()
         run.add_picture(BytesIO(logo_bytes), width=Inches(1.8))
+        _add_watermark(doc, logo_bytes)
 
     doc.add_paragraph()
 
@@ -376,6 +378,24 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
     subtitle_run.italic = True
     subtitle_run.font.size = Pt(12)
     subtitle_run.font.color.rgb = secondary
+
+    doc.add_paragraph()
+    details_heading = doc.add_paragraph()
+    details_heading.add_run("Learner Details").bold = True
+    details_table = doc.add_table(rows=5, cols=2)
+    details_table.style = "Table Grid"
+    for i, field in enumerate(["Learner Name", "Learner ID Number", "Facilitator Name", "Date Issued", "Signature"]):
+        details_table.cell(i, 0).text = field
+        details_table.cell(i, 0).paragraphs[0].runs[0].bold = True
+
+    doc.add_paragraph()
+    instructions_heading = doc.add_paragraph()
+    instructions_heading.add_run("How to Use This Textbook").bold = True
+    doc.add_paragraph(
+        "This textbook is structured into units, each covering a distinct area of the "
+        "qualification. Work through each unit in order, completing any activities or "
+        "exercises included, and use the Table of Contents to navigate between sections."
+    )
 
     doc.add_page_break()
 
@@ -464,7 +484,11 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
         doc.add_page_break()
 
     _add_signature_block(doc)
-    _add_page_numbers(doc)
+    _add_branded_header_footer(
+        doc, logo_bytes=logo_bytes, qualification_name=title,
+        organization_name=organization_name, primary_hex=primary_hex,
+        watermark=False, accreditation_info=accreditation_info, document_label="Textbook",
+    )
 
     buffer = BytesIO()
     doc.save(buffer)

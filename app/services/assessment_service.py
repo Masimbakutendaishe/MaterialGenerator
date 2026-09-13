@@ -18,7 +18,7 @@ def _hex_to_rgb(hex_str: str, fallback: str) -> RGBColor:
 
 def build_assessment_docx(title: str, units: list, organization_name: str = None,
                            seta: str = None, nqf_level: str = None, logo_bytes: bytes = None,
-                           brand_colors: dict = None, job_id: str = None, doc_label: str = "Assessment") -> BytesIO:
+                           brand_colors: dict = None, job_id: str = None, doc_label: str = "Assessment", **kwargs) -> BytesIO:
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
