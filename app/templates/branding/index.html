@@ -18,16 +18,57 @@
             </div>
 
             <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Address</label>
+                <p class="text-xs text-steel-400 mb-1.5">Shown on the cover page and document control section of generated material</p>
+                <input type="text" name="address" value="{{ org.address or '' }}" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Phone</label>
+                <input type="text" name="phone" value="{{ org.phone or '' }}" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Email</label>
+                <input type="email" name="email" value="{{ org.email or '' }}" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Website</label>
+                <input type="text" name="website" value="{{ org.website or '' }}" class="w-full border border-steel-200 rounded px-3 py-2 text-navy-950">
+            </div>
+
+            <div>
                 <label class="block text-sm font-medium text-steel-500 mb-1.5">Primary Color</label>
-                <input type="color" name="primary" value="{{ (org.brand_colors or {}).get('primary', '#1A5276') }}" class="w-full h-11 border border-steel-200 rounded cursor-pointer">
+                <p class="text-xs text-steel-400 mb-1.5">Main titles, section headings, the cover page title band, and table header shading</p>
+                <div class="flex gap-2">
+                    <input type="color" id="primary-picker" value="{{ (org.brand_colors or {}).get('primary', '#1A5276') }}" class="h-11 w-14 border border-steel-200 rounded cursor-pointer shrink-0">
+                    <input type="text" id="primary-hex" name="primary" value="{{ (org.brand_colors or {}).get('primary', '#1A5276') }}" pattern="^#[0-9A-Fa-f]{6}$" class="flex-1 h-11 border border-steel-200 rounded px-3 font-mono text-sm">
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-steel-500 mb-1.5">Secondary Color</label>
-                <input type="color" name="secondary" value="{{ (org.brand_colors or {}).get('secondary', '#2874A6') }}" class="w-full h-11 border border-steel-200 rounded cursor-pointer">
+                <p class="text-xs text-steel-400 mb-1.5">Subtitles and sub-headings beneath the main heading colour</p>
+                <div class="flex gap-2">
+                    <input type="color" id="secondary-picker" value="{{ (org.brand_colors or {}).get('secondary', '#2874A6') }}" class="h-11 w-14 border border-steel-200 rounded cursor-pointer shrink-0">
+                    <input type="text" id="secondary-hex" name="secondary" value="{{ (org.brand_colors or {}).get('secondary', '#2874A6') }}" pattern="^#[0-9A-Fa-f]{6}$" class="flex-1 h-11 border border-steel-200 rounded px-3 font-mono text-sm">
+                </div>
             </div>
             <div>
                 <label class="block text-sm font-medium text-steel-500 mb-1.5">Accent Color</label>
-                <input type="color" name="accent" value="{{ (org.brand_colors or {}).get('accent', '#F39C12') }}" class="w-full h-11 border border-steel-200 rounded cursor-pointer">
+                <p class="text-xs text-steel-400 mb-1.5">Thin rule lines, borders, and highlight accents around titles and dividers</p>
+                <div class="flex gap-2">
+                    <input type="color" id="accent-picker" value="{{ (org.brand_colors or {}).get('accent', '#F39C12') }}" class="h-11 w-14 border border-steel-200 rounded cursor-pointer shrink-0">
+                    <input type="text" id="accent-hex" name="accent" value="{{ (org.brand_colors or {}).get('accent', '#F39C12') }}" pattern="^#[0-9A-Fa-f]{6}$" class="flex-1 h-11 border border-steel-200 rounded px-3 font-mono text-sm">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-steel-500 mb-1.5">Font</label>
+                <p class="text-xs text-steel-400 mb-1.5">Used for all body text and headings throughout generated material</p>
+                <select name="font" class="w-full h-11 border border-steel-200 rounded px-3 text-navy-950">
+                    {% set current_font = (org.brand_colors or {}).get('font', 'Calibri') %}
+                    {% for f in ['Calibri', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Cambria', 'Garamond', 'Tahoma', 'Trebuchet MS', 'Segoe UI', 'Book Antiqua', 'Century Gothic', 'Franklin Gothic Book', 'Palatino Linotype', 'Corbel', 'Candara', 'Consolas'] %}
+                    <option value="{{ f }}" {% if current_font == f %}selected{% endif %}>{{ f }}</option>
+                    {% endfor %}
+                </select>
             </div>
 
             <button type="submit" class="bg-navy-950 text-white px-6 py-2.5 rounded font-medium hover:bg-navy-900 transition text-sm">Save Branding</button>
@@ -61,6 +102,18 @@
 <script>
     document.querySelectorAll('.color-swatch').forEach(el => {
         el.style.backgroundColor = el.dataset.color;
+    });
+
+    // Sync each color picker with its hex text field in both directions
+    ['primary', 'secondary', 'accent'].forEach(key => {
+        const picker = document.getElementById(`${key}-picker`);
+        const hexInput = document.getElementById(`${key}-hex`);
+        picker.addEventListener('input', () => { hexInput.value = picker.value; });
+        hexInput.addEventListener('input', () => {
+            if (/^#[0-9A-Fa-f]{6}$/.test(hexInput.value)) {
+                picker.value = hexInput.value;
+            }
+        });
     });
 </script>
 {% endblock %}

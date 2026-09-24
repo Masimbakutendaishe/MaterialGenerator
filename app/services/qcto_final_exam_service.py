@@ -10,13 +10,18 @@ the ISA specifies), followed by a Learner Agreement and Declaration checklist, a
 Needs section, and Learner Final Assessment Results with Learner/Assessor/Moderator
 sign-off."""
 from io import BytesIO
+import zipfile
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from app.services.ai_service import reason_isa_traceability, generate_km_exam_objective_questions, generate_km_short_answer_questions, parallel_map
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    _add_learner_registration_details,
+)
+from app.services.ai_service import (
+    parallel_map, generate_km_short_answer_questions, generate_km_exam_objective_questions,
+    reason_isa_traceability, reason_elo_cluster_mapping,
 )
 
 # Marks per question, matching typical accredited exam weighting conventions
@@ -482,9 +487,12 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     tf_statements = objective_data.get("true_false", [])
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "Final Exam", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_exam_header_table(doc, primary, primary_hex)
+    _add_learner_registration_details(doc, primary, primary_hex)
 
     section_marks = [
         ("Multiple Choice", len(mc_questions) * MC_MARKS_PER_Q),
@@ -518,16 +526,95 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     return buffer
 
 
+def build_qcto_isa_set_zip(title: str, syllabus_content: dict, organization_name: str = None,
+                            logo_bytes: bytes = None, brand_colors: dict = None,
+                            accreditation_info: dict = None, job_id: str = None) -> BytesIO:
+    """Builds one ISA document per Exit Level Outcome from the qualification's External
+    Assessment Specification, zipped together — the ISA is actually the final exam, and
+    ISAs come one after another, one per Exit Level Outcome, rather than a single combined
+    exam. Reuses the existing, unchanged build_qcto_final_exam_docx per ELO, called with
+    syllabus_content filtered down to only the modules in that ELO's linked cluster(s) —
+    so each ISA's content genuinely corresponds to the outcome it addresses.
+    Falls back to a single combined exam (the qualification's full module set) if no
+    External Assessment Specification has been uploaded, so the document type still
+    produces something useful either way."""
+    from app.services.qcto_isa_service import _build_clusters, _build_keyword_link_lookup
+
+    exit_level_outcomes = syllabus_content.get("exit_level_outcomes", [])
+
+    if not exit_level_outcomes:
+        buf = build_qcto_final_exam_docx(
+            title=title, syllabus_content=syllabus_content, organization_name=organization_name,
+            logo_bytes=logo_bytes, brand_colors=brand_colors, job_id=job_id,
+        )
+        zip_buf = BytesIO()
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("ISA (combined - no Exit Level Outcomes uploaded).docx", buf.getvalue())
+        zip_buf.seek(0)
+        return zip_buf
+
+    all_modules = syllabus_content.get("modules", [])
+    km_modules = [m for m in all_modules if m.get("module_type") == "KM"]
+    pm_modules = [m for m in all_modules if m.get("module_type") == "PM"]
+    wm_modules = [m for m in all_modules if m.get("module_type") == "WM"]
+
+    try:
+        link_lookup = reason_isa_traceability(km_modules, pm_modules, wm_modules, job_id=job_id)
+    except Exception:
+        link_lookup = _build_keyword_link_lookup(km_modules, pm_modules, wm_modules)
+
+    clusters = _build_clusters(km_modules, link_lookup)
+
+    try:
+        elo_cluster_mapping = reason_elo_cluster_mapping(exit_level_outcomes, clusters, job_id=job_id)
+    except Exception:
+        elo_cluster_mapping = {}
+
+    zip_buf = BytesIO()
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for isa_number, elo in enumerate(exit_level_outcomes, start=1):
+            elo_code = elo.get("code", "")
+            linked_cluster_numbers = elo_cluster_mapping.get(elo_code, [])
+            linked_clusters = [c for c in clusters if c["cluster_number"] in linked_cluster_numbers]
+
+            elo_km_modules = [c["km_module"] for c in linked_clusters]
+            elo_pm_codes = set(code for c in linked_clusters for code in c["pm_codes"])
+            elo_wm_codes = set(code for c in linked_clusters for code in c["wm_codes"])
+            elo_pm_modules = [m for m in pm_modules if m.get("module_code", "") in elo_pm_codes]
+            elo_wm_modules = [m for m in wm_modules if m.get("module_code", "") in elo_wm_codes]
+
+            isa_syllabus_content = {
+                **syllabus_content,
+                "modules": elo_km_modules + elo_pm_modules + elo_wm_modules,
+            }
+
+            deck_buf = build_qcto_final_exam_docx(
+                title=f"ISA {isa_number} — {elo_code}",
+                syllabus_content=isa_syllabus_content,
+                organization_name=organization_name,
+                logo_bytes=logo_bytes,
+                brand_colors=brand_colors,
+                job_id=job_id,
+            )
+            safe_code = "".join(c if c.isalnum() or c in " _-" else "" for c in elo_code).strip().replace(" ", "_")
+            zf.writestr(f"ISA_{isa_number}_{safe_code or 'ELO'}.docx", deck_buf.getvalue())
+
+    zip_buf.seek(0)
+    return zip_buf
+
+
 def build_qcto_final_exam_docx_adapter(title, units, organization_name=None, seta=None,
                                          nqf_level=None, logo_bytes=None, brand_colors=None,
-                                         job_id=None, **kwargs):
-    """Adapter matching the standard DOCUMENT_BUILDERS call signature."""
+                                         accreditation_info=None, job_id=None, **kwargs):
+    """Adapter matching the standard DOCUMENT_BUILDERS call signature — produces a zip of
+    one ISA document per Exit Level Outcome (see build_qcto_isa_set_zip)."""
     syllabus_content = {"modules": units} if isinstance(units, list) else (units or {"modules": []})
-    return build_qcto_final_exam_docx(
+    return build_qcto_isa_set_zip(
         title=title,
         syllabus_content=syllabus_content,
         organization_name=organization_name,
         logo_bytes=logo_bytes,
         brand_colors=brand_colors,
+        accreditation_info=accreditation_info,
         job_id=job_id,
     )

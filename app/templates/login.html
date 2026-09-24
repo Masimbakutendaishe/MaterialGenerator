@@ -1,15 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Sign In{% endblock %}
 {% block content %}
-<div class="min-h-[80vh] flex items-center justify-center -mt-8">
-    <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-            <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="Learning Material Generator" class="h-16 w-auto mx-auto mb-4">
-            <h1 class="text-xl font-semibold text-navy-950">Learning Material Generator</h1>
+<div class="fixed inset-0" style="z-index: -1; background-image: linear-gradient(135deg, rgba(10, 22, 40, 0.65), rgba(10, 22, 40, 0.55)), url('{{ url_for('static', filename='img/login-bg.jpg') }}'); background-size: cover; background-position: center;"></div>
+
+<div class="relative flex items-center justify-center" style="min-height: 70vh;">
+    <div class="w-full max-w-md px-4">
+        <div class="bg-white/95 backdrop-blur-sm rounded-[2rem] px-10 py-8 mb-6 text-center"
+             style="box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25), 0 10px 10px -5px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.5) inset;">
+            <img src="{{ url_for('static', filename='img/logo_transparent.png') }}" alt="Learning Material Generator" class="h-20 w-auto mx-auto mb-4">
+            <h1 class="text-2xl font-semibold text-navy-950">Learning Material Generator</h1>
             <p class="text-steel-500 text-sm mt-1">Workplace training materials, done right.</p>
         </div>
 
-        <div class="bg-white rounded-lg border border-steel-200 p-8">
+        <div class="bg-white rounded-[1.5rem] p-8"
+             style="box-shadow: 0 20px 25px -5px rgba(0,0,0,0.25), 0 10px 10px -5px rgba(0,0,0,0.15), 0 1px 0 rgba(255,255,255,0.5) inset;">
             <h2 class="text-base font-semibold text-navy-900 mb-6 uppercase tracking-wide text-sm">Sign In</h2>
             <form method="POST" class="space-y-4">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

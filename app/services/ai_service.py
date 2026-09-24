@@ -1450,6 +1450,199 @@ def _extract_relevant_window(raw_text: str, module_code: str, module_title: str 
     end = min(len(raw_text), idx + window_size)
     return raw_text[start:end]
 
+def reason_elo_cluster_mapping(exit_level_outcomes: list, clusters: list, job_id: str = None) -> dict:
+    """Reasons about which cluster(s) genuinely address each Exit Level Outcome (ELO) — a
+    semantic judgement based on real topic/IAC content, not keyword matching. Returns
+    {elo_code: [cluster_number, ...]}, defaulting any ELO the model omits to no linked
+    clusters (an honest default, not a crash)."""
+    elo_lines = []
+    for elo in exit_level_outcomes:
+        outcomes_text = "; ".join(elo.get("outcomes", []))
+        elo_lines.append(f"- {elo.get('code', '')} ({elo.get('title') or 'untitled'}): {outcomes_text}")
+
+    cluster_lines = []
+    for cluster in clusters:
+        km_module = cluster["km_module"]
+        topics_text = "; ".join(t.get("title", "") for t in km_module.get("topics", []))
+        cluster_lines.append(f"- Cluster {cluster['cluster_number']}: {km_module.get('title', '')} | Topics: {topics_text}")
+
+    prompt = f"""You are analysing a QCTO occupational qualification to determine which teaching
+cluster(s) genuinely address each Exit Level Outcome (ELO) from its External Assessment
+Specification, based on real content overlap — not just similar wording.
+
+Exit Level Outcomes:
+{chr(10).join(elo_lines)}
+
+Teaching Clusters (each built around one Knowledge Module and its linked Practical/Workplace Modules):
+{chr(10).join(cluster_lines)}
+
+For EACH Exit Level Outcome, decide which cluster(s) genuinely cover the competency it describes.
+An ELO is usually addressed by one or a small number of clusters — do not link every cluster to
+every ELO. Only link where the actual content substantively overlaps.
+
+Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
+{{
+  "mappings": [
+    {{"elo_code": "...", "cluster_numbers": [1, 2]}}
+  ]
+}}
+
+CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
+for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
+or a term in quotes, use single quotes instead (e.g. the supervisor said 'stop the line', not the
+supervisor said "stop the line")."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=4000, job_id=job_id)
+    try:
+        data = json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            data = json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return {}
+
+    return {m.get("elo_code", ""): m.get("cluster_numbers", []) for m in data.get("mappings", [])}
+def generate_wm_scope_of_work_activities(we_element_text: str, module_title: str, job_id: str = None) -> list:
+    """Breaks one Work Experience (WE) element down into a set of concrete, sequential
+    activities the learner actually performs — for the Statement of Work Experience's
+    'Scope Work Experience' table. Matches the real reference pattern: 4-5 short,
+    action-oriented steps per element, in the order they would genuinely be carried out."""
+    prompt = f"""You are writing a Statement of Work Experience for a South African QCTO-accredited
+occupational qualification.
+
+Module: {module_title}
+Work Experience element: {we_element_text}
+
+Break this Work Experience element down into 4-5 concrete, sequential activities the learner
+actually performs on the job to carry it out — short, action-oriented steps, in the order they
+would genuinely happen, specific enough that a supervisor could observe and sign off on each one.
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "activities": ["<activity 1>", "<activity 2>", "<activity 3>", "<activity 4>"]
+}}
+
+CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
+for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
+or a term in quotes, use single quotes instead (e.g. the supervisor said 'stop the line', not the
+supervisor said "stop the line")."""
+
+    raw_response = _call_model("textbook_writing", prompt, max_tokens=1500, job_id=job_id)
+    try:
+        result = json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            result = json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return []
+    return result.get("activities", [])
+
+
+def extract_referenced_documents(module_content_text: str, job_id: str = None) -> list:
+    """Identifies real, specifically-named legal or standard documents mentioned within
+    already-generated learner material (an Act, a regulation, an ISO/SANS standard, a
+    government gazette, etc.) — extraction of names already present in the text, not
+    generation of new content, so this carries none of the hallucination risk that
+    inventing a document name or URL would. Returns a list of {"name": ..., "type": ...}
+    for each genuinely, specifically named document found. Deliberately excludes vague
+    mentions ("the relevant legislation") that don't name a real, findable document."""
+    truncated_text = module_content_text[:40000]
+
+    prompt = f"""Below is learner training material for a South African occupational qualification.
+Identify every SPECIFICALLY NAMED legal or standard document mentioned in this text — for example
+a named Act with its number and year (e.g. "Occupational Health and Safety Act 85 of 1993"), a
+named regulation, a named ISO or SANS standard with its number (e.g. "ISO 45001:2018"), or a named
+government gazette or code of practice.
+
+Only extract documents that are SPECIFICALLY named — with enough detail (a number, a year, a
+standard code) that the exact real document could be found and verified. Do NOT extract vague
+references like "the relevant legislation", "applicable regulations", or "industry standards" —
+these don't name a specific, findable document, so skip them entirely.
+
+Text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "documents": [
+    {{"name": "<the document's full name exactly as named in the text>", "type": "<one of: act, regulation, standard, gazette, other>"}}
+  ]
+}}
+
+If no specifically-named documents are found, return {{"documents": []}}. Do not invent or guess
+at a document's full name or number if the text only refers to it vaguely.
+
+CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
+for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
+or a term in quotes, use single quotes instead (e.g. the supervisor said 'stop the line', not the
+supervisor said "stop the line")."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=3000, job_id=job_id)
+    try:
+        result = json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            result = json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return []
+    return result.get("documents", [])
+
+
+def extract_exit_level_outcomes(raw_text: str) -> list:
+    """Extracts Exit Level Outcomes from an External Assessment Specification (EAS)
+    document — a separate QCTO syllabus companion document to the curriculum document,
+    listing the outcomes each Integrated Summative Assessment (ISA) is built to address.
+    Each Exit Level Outcome is a numbered group of outcome statements; typically one ISA
+    exists per Exit Level Outcome."""
+    truncated_text = raw_text[:60000]
+
+    prompt = f"""Below is the text of a South African QCTO External Assessment Specification (EAS)
+document. This is a companion document to the main curriculum document, and it defines Exit Level
+Outcomes (ELOs) — the outcomes a qualified learner must be able to demonstrate, which the External
+Integrated Summative Assessment (ISA/EISA) is built to assess. Extract every Exit Level Outcome
+found in this document.
+
+Each Exit Level Outcome typically has a number/code (e.g. "ELO 1", "Exit Level Outcome 1"), a short
+title or theme, and a set of individual outcome statements or associated assessment criteria under
+it. Capture the real wording as closely as possible — this is extraction, not rewriting.
+
+Full document text:
+---
+{truncated_text}
+---
+
+Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
+{{
+  "exit_level_outcomes": [
+    {{
+      "code": "<ELO number/code as printed, e.g. 'ELO 1' or '1'>",
+      "title": "<short theme/title for this ELO, if given, else null>",
+      "outcomes": ["<outcome statement 1>", "<outcome statement 2>"]
+    }}
+  ]
+}}
+
+If you cannot find genuine Exit Level Outcome content in this text, return {{"exit_level_outcomes": []}}.
+Do not invent outcomes that aren't genuinely present in the text.
+
+CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
+for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
+or a term in quotes, use single quotes instead (e.g. the supervisor said 'stop the line', not the
+supervisor said "stop the line")."""
+
+    raw_response = _call_model("syllabus_structuring", prompt, max_tokens=6000)
+    try:
+        result = json.loads(raw_response)
+    except json.JSONDecodeError:
+        try:
+            result = json.loads(_repair_json_string(raw_response))
+        except json.JSONDecodeError:
+            return []
+    return result.get("exit_level_outcomes", [])
+
+
 def extract_qcto_module_topics(module_code: str, module_title: str, raw_text: str) -> list:
     """Extracts detailed topics/elements/assessment criteria for ONE specific module from
     the full curriculum text — used as a second pass after structure_qcto_syllabus_from_text
@@ -2377,11 +2570,16 @@ Assign a reasonable mark value to each question based on its complexity.
 Return ONLY valid JSON (no markdown, no commentary) matching this exact shape:
 {{
   "questions": [
-    {{"type": "open", "question_text": "...", "marks": 5, "blank_lines": 4, "source_criterion": "<which criterion above this addresses>"}},
-    {{"type": "diagram", "question_text": "...", "marks": 5, "blank_lines": 6, "source_criterion": "..."}},
+    {{"type": "open", "question_text": "...", "marks": 5, "blank_lines": 4, "source_criterion": "<which criterion above this addresses>", "model_answer_points": ["<scoreable point 1>", "<scoreable point 2>"]}},
+    {{"type": "diagram", "question_text": "...", "marks": 5, "blank_lines": 6, "source_criterion": "...", "model_answer_points": ["<what a correct diagram should show>"]}},
     {{"type": "multiple_choice", "question_text": "...", "marks": 2, "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}}, "correct": "B", "source_criterion": "..."}}
   ]
 }}
+
+model_answer_points (for open/diagram questions only) should be 2-4 concise, scoreable points
+that together would earn full marks — written for an assessor's marking memorandum, not for
+the learner to see. multiple_choice questions don't need this field since "correct" already
+gives the answer.
 
 Never include the marks value inside question_text itself (e.g. do not write "(5 marks)" as
 part of the question wording) — marks are shown separately from the "marks" field, so

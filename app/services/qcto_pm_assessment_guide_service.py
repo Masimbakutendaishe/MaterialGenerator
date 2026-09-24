@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_pm_scenario_and_questions, parallel_map
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -79,7 +79,7 @@ def _add_pag_process_and_steps(doc, primary, primary_hex, secondary):
     _section_heading(doc, "Assessment Steps", primary, primary_hex)
 
     pm_learner_guide = "PM Learner Guide"
-    pm_facilitator_guide = "PM Facilitator Guide"
+    pm_facilitator_guide = "PM Subject Matter Expert/Facilitator Guide"
     pm_scenario_assessment = "PM Assessment (Scenario-Based)"
 
     steps = [
@@ -169,11 +169,11 @@ def _add_pag_role_players(doc, primary, primary_hex, secondary):
     )
 
     facilitator_heading = doc.add_paragraph()
-    facilitator_heading.add_run("Facilitator").bold = True
+    facilitator_heading.add_run("SME (Subject Matter Expert)").bold = True
     facilitator_heading.runs[0].font.color.rgb = secondary
     doc.add_paragraph(
         "The facilitator prepares the learner through demonstration and guided practice, "
-        "using the PM Learner Guide and PM Facilitator Guide, before the learner attempts "
+        "using the PM Learner Guide and PM Subject Matter Expert/Facilitator Guide, before the learner attempts "
         "independent, assessed performance of the practical activity."
     )
     doc.add_page_break()
@@ -243,7 +243,7 @@ def _add_pag_learner_information(doc, primary, primary_hex):
         c.paragraphs[0].runs[0].bold = True
 
     for field in ["Candidate Name", "Candidate ID Number", "Name of Manager",
-                  "Work Unit / Department", "Facilitator", "Date Started", "Date of Completion"]:
+                  "Work Unit / Department", "SME/Facilitator", "Date Started", "Date of Completion"]:
         row = table.add_row().cells
         row[0].text = field
     doc.add_page_break()
@@ -295,9 +295,9 @@ def _add_pag_module_intro(doc, module, module_index, primary, primary_hex):
 
     doc.add_paragraph("Human Resource Requirements:").runs[0].bold = True
     for item in [
-        "Facilitators of learning with subject matter expertise as covered by this module",
-        "Facilitators who have achieved a nationally accepted standard in the delivery of occupational learning",
-        "Facilitators of learning who have achieved a recognised learning standard in assessment practice",
+        "SMEs/Facilitators of learning with subject matter expertise as covered by this module",
+        "SMEs/Facilitators who have achieved a nationally accepted standard in the delivery of occupational learning",
+        "SMEs/Facilitators of learning who have achieved a recognised learning standard in assessment practice",
     ]:
         doc.add_paragraph(item, style="List Bullet")
     doc.add_page_break()
@@ -457,6 +457,8 @@ def build_qcto_pm_assessment_guide_docx(title: str, syllabus_content: dict, orga
     pm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "PM"]
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "PM Assessment Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_pag_cover_details(doc, qualification_title, primary, primary_hex)

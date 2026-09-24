@@ -11,7 +11,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    _add_learner_registration_details,
 )
 from app.services.qcto_pm_assessment_guide_service import (
     _add_pag_module_intro,
@@ -412,9 +413,12 @@ def build_qcto_pm_poe_docx(title: str, syllabus_content: dict, organization_name
     pm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "PM"]
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "PM Portfolio of Evidence", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_poe_cover_details(doc, qualification_title, primary, primary_hex)
+    _add_learner_registration_details(doc, primary, primary_hex)
     _add_poe_toc(doc, primary, primary_hex, module_count=len(pm_modules) or 1)
     _add_poe_foreword(doc, primary, primary_hex)
     _add_poe_process(doc, primary, primary_hex)

@@ -7,7 +7,8 @@ from docx.shared import Pt, Inches
 from app.services.ai_service import generate_qcto_assessment_content
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    _add_learner_registration_details,
 )
 
 def _add_document_control_and_roles(doc, primary, primary_hex, module_type, qualification_title):
@@ -607,6 +608,8 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
     qualification_title = syllabus_content.get("qualification_title", "") or title
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, label, organization_name, logo_bytes, primary, primary_hex, secondary)
 
     details_table = doc.add_table(rows=6, cols=2)
@@ -616,6 +619,7 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
         details_table.cell(i, 0).paragraphs[0].runs[0].bold = True
     doc.add_page_break()
 
+    _add_learner_registration_details(doc, primary, primary_hex)
     _add_document_control_and_roles(doc, primary, primary_hex, module_type, qualification_title)
 
     modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == module_type]
@@ -642,7 +646,7 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
 
         _add_module_alignment_table(doc, primary, primary_hex, module, module_type)
 
-        content = module.get("generated_formative_assessment") if module_type == "KM" else None
+        content = module.get("generated_formative_assessment") if module_type == "KM" else module.get("generated_pm_assessment")
         if not content:
             content = generate_qcto_assessment_content(module, job_id=job_id)
 

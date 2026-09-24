@@ -37,13 +37,21 @@ def upload_file(file_bytes: bytes, key: str, content_type: str) -> str:
     return key
 
 
-def get_presigned_url(key: str, expires_in: int = 3600) -> str:
-    """Generates a temporary download URL for a stored file. Default expiry: 1 hour."""
+def get_presigned_url(key: str, expires_in: int = 3600, download_filename: str = None) -> str:
+    """Generates a temporary download URL for a stored file. Default expiry: 1 hour.
+
+    Storage keys are internal, UUID-based identifiers (e.g. "{org_id}/{job_id}.docx") not
+    meant to be readable — download_filename overrides only the filename the browser
+    suggests when saving, via the standard S3 ResponseContentDisposition parameter,
+    without touching the actual stored object key."""
     bucket = current_app.config.get("S3_BUCKET")
     client = _client()
+    params = {"Bucket": bucket, "Key": key}
+    if download_filename:
+        params["ResponseContentDisposition"] = f'attachment; filename="{download_filename}"'
     return client.generate_presigned_url(
         "get_object",
-        Params={"Bucket": bucket, "Key": key},
+        Params=params,
         ExpiresIn=expires_in,
     )
 

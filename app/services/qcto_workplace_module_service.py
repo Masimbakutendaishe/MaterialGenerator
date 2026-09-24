@@ -11,7 +11,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_qcto_workplace_module_content, parallel_map
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer,
-    _render_content_block, _add_bottom_border, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT,
+    _render_content_block, _add_bottom_border, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
 )
 
 
@@ -128,6 +128,8 @@ def build_qcto_workplace_module_docx(title: str, syllabus_content: dict, organiz
     qualification_title = syllabus_content.get("qualification_title", "") or title
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "WM Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_wm_front_matter(doc, primary, primary_hex, secondary)

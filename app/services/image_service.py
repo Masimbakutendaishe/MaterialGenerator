@@ -108,6 +108,31 @@ def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: 
     buffer.seek(0)
     return buffer.read()
 
+def fetch_stock_photo_url(search_term: str) -> str | None:
+    """Same lookup as fetch_stock_photo, but returns the image URL itself rather than
+    downloading the bytes — for use directly in a web page (e.g. a CSS background-image),
+    where the browser can fetch it, rather than a generated document that needs the raw
+    bytes embedded."""
+    access_key = current_app.config.get("UNSPLASH_ACCESS_KEY")
+    if not access_key:
+        return None
+
+    try:
+        search_resp = requests.get(
+            "https://api.unsplash.com/search/photos",
+            params={"query": search_term, "per_page": 1, "orientation": "landscape"},
+            headers={"Authorization": f"Client-ID {access_key}"},
+            timeout=10,
+        )
+        search_resp.raise_for_status()
+        results = search_resp.json().get("results", [])
+        if not results:
+            return None
+        return results[0]["urls"]["regular"]
+    except Exception:
+        return None
+
+
 def fetch_stock_photo(search_term: str) -> bytes | None:
     """Fetches one relevant photo from Unsplash for the given search term.
     Returns JPEG bytes, or None if no key configured or nothing found — callers

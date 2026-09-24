@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_alignment_matrix_row
-from app.services.document_service import _hex_to_rgb, _add_page_numbers, DEFAULT_PRIMARY
+from app.services.document_service import _hex_to_rgb, _add_page_numbers, DEFAULT_PRIMARY, _set_default_font
 
 TYPE_LABELS = {
     "MC": "Multiple Choice", "SQ": "Short Question", "LQ": "Long Question",
@@ -21,6 +21,7 @@ def build_alignment_matrix_docx(title: str, units: list, organization_name: str 
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
 
     doc = Document()
+    _set_default_font(doc, brand_colors.get("font"))
 
     from app.services.document_service import _build_branded_cover
     _build_branded_cover(doc, title, "Programme Alignment Matrix", organization_name, logo_bytes, primary, primary_hex, primary)

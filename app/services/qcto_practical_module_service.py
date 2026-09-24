@@ -11,7 +11,8 @@ from app.services.ai_service import generate_qcto_practical_module_content, para
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer,
     _render_content_block, _add_bottom_border, _element_text, _element_code,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
+    _add_document_control_copyright, _add_learner_registration_details,
 )
 
 
@@ -144,7 +145,33 @@ def build_qcto_practical_module_docx(title: str, syllabus_content: dict, organiz
     qualification_title = syllabus_content.get("qualification_title", "") or title
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "PM Learner Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
+
+    seta_name = None
+    if accreditation_info.get("seta"):
+        from app.services.seta_constants import get_seta_name
+        seta_name = get_seta_name(accreditation_info["seta"])
+    pm_module_codes = [
+        m.get("module_code", "") for m in syllabus_content.get("modules", [])
+        if m.get("module_type") == "PM" and m.get("module_code")
+    ]
+    _add_document_control_copyright(
+        doc, primary, primary_hex,
+        qualification_title=qualification_title,
+        qualification_code=accreditation_info.get("qualification_code"),
+        saqa_id=accreditation_info.get("saqa_id"),
+        nqf_level=accreditation_info.get("nqf_level"),
+        seta_name=seta_name,
+        modules_covered=", ".join(pm_module_codes) if pm_module_codes else None,
+        organization_name=organization_name,
+        document_title="Practical Skill Modules — Learner Guide",
+        organization_address=accreditation_info.get("organization_address"),
+        organization_phone=accreditation_info.get("organization_phone"),
+        organization_email=accreditation_info.get("organization_email"),
+        organization_website=accreditation_info.get("organization_website"),
+    )
 
     _add_pm_front_matter(doc, primary, primary_hex, secondary)
 
@@ -154,6 +181,8 @@ def build_qcto_practical_module_docx(title: str, syllabus_content: dict, organiz
         details_table.cell(i, 0).text = field
         details_table.cell(i, 0).paragraphs[0].runs[0].bold = True
     doc.add_page_break()
+
+    _add_learner_registration_details(doc, primary, primary_hex)
 
     pm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "PM"]
 

@@ -1,10 +1,11 @@
 ﻿"""Syllabus web pages: list, and three intake methods (typed, upload, AI-generate)."""
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from io import BytesIO
 from flask_login import login_required, current_user
 from app.extensions import db
 from app.models.syllabus import Syllabus
 from app.services.syllabus_service import extract_text_from_upload
-from app.services.ai_service import structure_syllabus_from_text, generate_syllabus
+from app.services.ai_service import structure_syllabus_from_text, generate_syllabus, extract_exit_level_outcomes
 
 syllabus_web_bp = Blueprint("syllabus_web", __name__, url_prefix="/syllabus")
 
@@ -110,6 +111,88 @@ def create_typed_qcto():
     db.session.commit()
     flash(f"'{title}' created successfully.")
     return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus.id))
+
+@syllabus_web_bp.route("/<syllabus_id>/retry-extraction", methods=["POST"])
+@login_required
+def retry_extraction(syllabus_id):
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first()
+    if not syllabus:
+        flash("Syllabus not found.")
+        return redirect(url_for("syllabus_web.list_syllabi"))
+
+    if syllabus.syllabus_type != "qcto" or not syllabus.original_file_key:
+        flash("Retry is only available for QCTO curricula uploaded from a file.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    from app.services.storage_service import download_file
+
+    file_bytes = download_file(syllabus.original_file_key)
+    if not file_bytes:
+        flash("Could not retrieve the original uploaded file to retry extraction.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    filename = syllabus.original_file_key.rsplit("_", 1)[-1] if "_" in syllabus.original_file_key else "syllabus.pdf"
+    from werkzeug.datastructures import FileStorage
+    fs = FileStorage(stream=BytesIO(file_bytes), filename=filename)
+
+    try:
+        raw_text = extract_text_from_upload(fs)
+    except ValueError as exc:
+        flash(str(exc))
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    syllabus.status = "processing"
+    db.session.commit()
+
+    from app.tasks.syllabus_tasks import retry_qcto_extraction_task
+    retry_qcto_extraction_task.delay(syllabus.id, raw_text)
+
+    flash("Retrying extraction for modules that previously failed — already-successful modules are untouched. You'll be notified once it's done.")
+    return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+
+@syllabus_web_bp.route("/<syllabus_id>/upload-eas", methods=["POST"])
+@login_required
+def upload_eas(syllabus_id):
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first()
+    if not syllabus:
+        flash("Syllabus not found.")
+        return redirect(url_for("syllabus_web.list_syllabi"))
+
+    if syllabus.syllabus_type != "qcto":
+        flash("The External Assessment Specification only applies to QCTO curricula.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    if "eas_file" not in request.files or not request.files["eas_file"].filename:
+        flash("Please choose a file to upload.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    file_storage = request.files["eas_file"]
+    file_storage.stream.seek(0)
+    original_bytes = file_storage.stream.read()
+    file_storage.stream.seek(0)
+
+    try:
+        raw_text = extract_text_from_upload(file_storage)
+    except ValueError as exc:
+        flash(str(exc))
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    if not raw_text.strip():
+        flash("No readable text found in the uploaded file.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    from app.services.storage_service import upload_file
+    file_key = f"{current_user.organization_id}/syllabi/{syllabus.id}_eas_{file_storage.filename}"
+    upload_file(original_bytes, file_key, file_storage.mimetype or "application/pdf")
+    syllabus.eas_file_key = file_key
+    db.session.commit()
+
+    from app.tasks.syllabus_tasks import process_eas_upload_task
+    process_eas_upload_task.delay(syllabus.id, raw_text)
+
+    flash("Your External Assessment Specification is being processed — you'll be notified once it's ready.")
+    return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
 
 
 
@@ -412,4 +495,17 @@ def view_original_file(syllabus_id):
         return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
 
     url = get_presigned_url(syllabus.original_file_key, expires_in=300)
+    return redirect(url)
+
+
+@syllabus_web_bp.route("/<syllabus_id>/view-eas-file")
+@login_required
+def view_eas_file(syllabus_id):
+    from app.services.storage_service import get_presigned_url
+    syllabus = Syllabus.query.filter_by(id=syllabus_id, organization_id=current_user.organization_id).first()
+    if not syllabus or not syllabus.eas_file_key:
+        flash("No External Assessment Specification file available for this syllabus.")
+        return redirect(url_for("syllabus_web.detail", syllabus_id=syllabus_id))
+
+    url = get_presigned_url(syllabus.eas_file_key, expires_in=300)
     return redirect(url)

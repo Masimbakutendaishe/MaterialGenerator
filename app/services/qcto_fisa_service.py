@@ -19,7 +19,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import reason_isa_traceability, generate_km_exam_objective_questions
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 from app.services.qcto_isa_service import (
@@ -84,6 +84,8 @@ def build_qcto_fisa_docx(title: str, syllabus_content: dict, organization_name: 
     tf_statements = objective_data.get("true_false", [])
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(
         doc, qualification_title, "FISA — Final Integrated Summative Assessment",
         organization_name, logo_bytes, primary, primary_hex, secondary,

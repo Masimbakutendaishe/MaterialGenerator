@@ -120,7 +120,24 @@ def download(job_id):
         flash(f"This material is awaiting review (status: {review.status}).")
         return redirect(url_for("generation_web.index"))
 
-    url = get_presigned_url(job.result_file_path, expires_in=300)
+    download_filename = None
+    if job.result_file_path:
+        import re
+        from app.models.syllabus import Syllabus
+        from app.services.seta_constants import document_display_name
+
+        syllabus = Syllabus.query.get(job.syllabus_id)
+        qualification_title = syllabus.title if syllabus else "Material"
+        subtype = job.document_subtype or job.material_type
+        document_label = document_display_name(subtype)
+        extension = job.result_file_path.rsplit(".", 1)[-1] if "." in job.result_file_path else "docx"
+
+        combined = f"{qualification_title} - {document_label}"
+        sanitized = re.sub(r'[<>:"/\\|?*]', "", combined)
+        sanitized = re.sub(r"\s+", " ", sanitized).strip()
+        download_filename = f"{sanitized}.{extension}"
+
+    url = get_presigned_url(job.result_file_path, expires_in=300, download_filename=download_filename)
     return redirect(url)
 
 

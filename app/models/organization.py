@@ -11,6 +11,10 @@ class Organization(db.Model):
     name = db.Column(db.String(255), nullable=False)
     logo_url = db.Column(db.String(500), nullable=True)
     brand_colors = db.Column(db.JSON, nullable=True)
+    address = db.Column(db.String(500), nullable=True)
+    phone = db.Column(db.String(100), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    website = db.Column(db.String(255), nullable=True)
     plan = db.Column(db.String(50), nullable=False, default="trial")  # "trial" | "subscription" | "pay_per_use"
     trial_ends_at = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)

@@ -13,7 +13,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_facilitator_guide_content, generate_pm_facilitation_steps, parallel_map
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -35,7 +35,7 @@ def _add_pm_fg_toc(doc, primary, primary_hex, day_count):
 
 
 def _add_pm_fg_introduction(doc, primary, primary_hex, secondary):
-    _section_heading(doc, "Facilitator Guide Introduction", primary, primary_hex, size=18)
+    _section_heading(doc, "SME/Facilitator Guide Introduction", primary, primary_hex, size=18)
     _section_heading(doc, "Facilitation Methodology", primary, primary_hex, size=14)
 
     _section_heading(doc, "Provider Programme Accreditation Criteria", primary, primary_hex, size=12)
@@ -49,9 +49,9 @@ def _add_pm_fg_introduction(doc, primary, primary_hex, secondary):
 
     doc.add_paragraph("Human Resource Requirements:").runs[0].bold = True
     for item in [
-        "Facilitators with genuine hands-on practical experience in the skills being taught, not classroom-only expertise",
-        "Facilitators who have achieved a nationally accepted standard in the delivery of occupational learning",
-        "Facilitators of learning who have achieved a recognised learning standard in assessment practice",
+        "SMEs/Facilitators with genuine hands-on practical experience in the skills being taught, not classroom-only expertise",
+        "SMEs/Facilitators who have achieved a nationally accepted standard in the delivery of occupational learning",
+        "SMEs/Facilitators of learning who have achieved a recognised learning standard in assessment practice",
         "Not more than 12 learners per facilitator during hands-on practical sessions, to allow real individual supervision",
     ]:
         doc.add_paragraph(item, style="List Bullet")
@@ -189,10 +189,10 @@ def _add_pm_fg_practical_assignment(doc, primary, primary_hex):
 
 
 def _add_pm_fg_preparation(doc, primary, primary_hex):
-    _section_heading(doc, "Facilitator Preparation", primary, primary_hex, size=18)
+    _section_heading(doc, "SME/Facilitator Preparation", primary, primary_hex, size=18)
 
     doc.add_paragraph("Review the material set in the trainer's file, which consists of the following documentation:")
-    for item in ["Facilitator Guide", "PM Learner Guide", "Formative Assessment Guide", "Learner POE Guide", "Assessor Guide"]:
+    for item in ["SME/Facilitator Guide", "PM Learner Guide", "Formative Assessment Guide", "Learner POE/Workbook Guide", "Assessor Guide"]:
         doc.add_paragraph(item, style="List Bullet")
 
     doc.add_paragraph()
@@ -214,7 +214,7 @@ def _add_pm_fg_preparation(doc, primary, primary_hex):
 
 
 def _add_pm_fg_feedback_report(doc, primary, primary_hex):
-    _section_heading(doc, "Facilitator Feedback Report", primary, primary_hex, size=18)
+    _section_heading(doc, "SME/Facilitator Feedback Report", primary, primary_hex, size=18)
 
     doc.add_paragraph("Within 5 days of completing the training, you are required to:")
     for item in [
@@ -373,7 +373,9 @@ def build_qcto_pm_facilitator_guide_docx(title: str, syllabus_content: dict, org
     pm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "PM"]
 
     doc = Document()
-    _build_branded_cover(doc, qualification_title, "PM Facilitator Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
+
+    _set_default_font(doc, brand_colors.get("font"))
+    _build_branded_cover(doc, qualification_title, "PM Subject Matter Expert/Facilitator Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_pm_fg_toc(doc, primary, primary_hex, day_count=len(pm_modules) or 1)
     _add_pm_fg_introduction(doc, primary, primary_hex, secondary)
@@ -505,7 +507,7 @@ def build_qcto_pm_facilitator_guide_docx(title: str, syllabus_content: dict, org
     sig_p = doc.add_paragraph()
     sig_p.add_run("Assessor Signature: " + "_" * 30 + "     Date: " + "_" * 20)
 
-    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=qualification_title, organization_name=organization_name, primary_hex=primary_hex, accreditation_info=accreditation_info, document_label="PM Facilitator Guide")
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=qualification_title, organization_name=organization_name, primary_hex=primary_hex, accreditation_info=accreditation_info, document_label="PM Subject Matter Expert/Facilitator Guide")
 
     buffer = BytesIO()
     doc.save(buffer)

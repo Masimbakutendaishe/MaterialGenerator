@@ -14,7 +14,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_km_formative_questions, parallel_map
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    _add_learner_registration_details,
 )
 
 
@@ -380,9 +381,15 @@ def _add_poe_formative_assessment(doc, km_modules, primary, primary_hex, seconda
             if topic.get("assessment_criteria"):
                 topics_to_process.append(topic)
 
+    def _fetch_topic_questions(t):
+        cached = t.get("generated_km_poe_questions")
+        if cached:
+            return cached
+        return generate_km_formative_questions(t, job_id=job_id)
+
     topic_contents = parallel_map(
         topics_to_process,
-        lambda t: generate_km_formative_questions(t, job_id=job_id),
+        _fetch_topic_questions,
         max_workers=3,
     )
 
@@ -487,9 +494,12 @@ def build_qcto_km_poe_docx(title: str, syllabus_content: dict, organization_name
     km_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "KM"]
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "KM Portfolio of Evidence", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_poe_cover_details(doc, qualification_title, primary, primary_hex)
+    _add_learner_registration_details(doc, primary, primary_hex)
     _add_poe_toc(doc, primary, primary_hex)
     _add_poe_foreword(doc, primary, primary_hex)
     _add_poe_process(doc, primary, primary_hex)

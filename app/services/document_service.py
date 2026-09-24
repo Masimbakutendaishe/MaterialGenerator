@@ -301,10 +301,18 @@ def _add_page_border(section, color_hex: str):
     sect_pr.append(p_borders)
 
 
-def _set_default_font(doc: Document):
+def _set_default_font(doc: Document, font_name: str = "Calibri"):
     style = doc.styles["Normal"]
-    style.font.name = "Calibri"
+    style.font.name = font_name or "Calibri"
     style.font.size = Pt(11)
+    # East Asian font element must also be set, or Word silently falls back to Calibri
+    # for the "Normal" style's complex-script/east-asian font in some Word versions.
+    rpr = style.element.get_or_add_rPr()
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.append(rfonts)
+    rfonts.set(qn("w:eastAsia"), font_name or "Calibri")
 
 
 def build_textbook_docx(title: str, units: list, organization_name: str = None,
@@ -322,7 +330,8 @@ def build_textbook_docx(title: str, units: list, organization_name: str = None,
     accent = _hex_to_rgb(accent_hex, DEFAULT_ACCENT)
 
     doc = Document()
-    _set_default_font(doc)
+
+    _set_default_font(doc, brand_colors.get("font"))
 
     # Decorative border around the whole cover page
     _add_page_border(doc.sections[0], primary_hex)
@@ -753,6 +762,16 @@ def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualific
         org_run = footer_para.add_run(organization_name)
         org_run.font.size = Pt(9)
         org_run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
+        contact_bits = [p for p in [
+            accreditation_info.get("organization_address"),
+            accreditation_info.get("organization_phone"),
+            accreditation_info.get("organization_email"),
+            accreditation_info.get("organization_website"),
+        ] if p]
+        if contact_bits:
+            contact_run = footer_para.add_run("  ·  " + "  ·  ".join(contact_bits))
+            contact_run.font.size = Pt(7)
+            contact_run.font.color.rgb = _hex_to_rgb(color_hex, DEFAULT_PRIMARY)
 
     footer_para.add_run("\t")
 
@@ -863,6 +882,139 @@ def _add_hyperlink(paragraph, url, text, color_hex="0563C1"):
     hyperlink.append(new_run)
 
     paragraph._p.append(hyperlink)
+
+def _add_document_control_copyright(doc: Document, primary: RGBColor, primary_hex: str,
+                                     qualification_title: str = None, qualification_code: str = None,
+                                     saqa_id: str = None, nqf_level: str = None, credits=None,
+                                     seta_name: str = None, modules_covered: str = None,
+                                     organization_name: str = None, document_title: str = None,
+                                     organization_address: str = None, organization_phone: str = None,
+                                     organization_email: str = None, organization_website: str = None):
+    """Adds a Document Control and Copyright page — placed right after the cover page,
+    before the Table of Contents. Only fields with real, available data are shown; fields
+    the system has no source for (version, date of issue, developed by, approved by) are
+    left as blank fill-in lines rather than invented."""
+    heading = doc.add_paragraph()
+    heading_run = heading.add_run("Document Control and Copyright")
+    heading_run.bold = True
+    heading_run.font.size = Pt(16)
+    heading_run.font.color.rgb = primary
+    _add_bottom_border(heading, primary_hex, size="8")
+
+    table = doc.add_table(rows=0, cols=2)
+    table.style = "Table Grid"
+
+    def add_row(label, value):
+        row = table.add_row()
+        row.cells[0].text = label
+        row.cells[0].paragraphs[0].runs[0].bold = True
+        row.cells[1].text = str(value) if value else ""
+
+    if document_title:
+        add_row("Document title", document_title)
+    if qualification_title:
+        add_row("Qualification", qualification_title)
+    if qualification_code:
+        add_row("Qualification code", qualification_code)
+    if saqa_id:
+        add_row("SAQA identifier", saqa_id)
+    if nqf_level:
+        credits_part = f" · {credits} credits" if credits else ""
+        add_row("NQF level and credits", f"NQF Level {nqf_level}{credits_part}")
+    if seta_name:
+        add_row("Quality Partner", seta_name)
+    if modules_covered:
+        add_row("Modules covered", modules_covered)
+    if organization_name:
+        add_row("Training provider", organization_name)
+    if organization_address:
+        add_row("Provider address", organization_address)
+    contact_parts = [p for p in [organization_phone, organization_email, organization_website] if p]
+    if contact_parts:
+        add_row("Provider contact", " · ".join(contact_parts))
+    add_row("Version", "")
+    add_row("Date of issue", "")
+    add_row("Review date", "")
+    add_row("Developed by", "")
+    add_row("Approved by", "")
+
+    doc.add_paragraph()
+    copyright_heading = doc.add_paragraph()
+    copyright_heading.add_run("Copyright").bold = True
+    doc.add_paragraph(
+        f"This material is the property of {organization_name or 'the training provider'}. "
+        "It may be reproduced and used for the delivery of the qualification named above by "
+        "this provider and its accredited delivery sites. It may not be sold, licensed, or "
+        "reproduced for any other purpose without written permission. Curriculum content "
+        "reproduced from the QCTO curriculum document is the intellectual property of the "
+        "Quality Council for Trades and Occupations and is acknowledged as such."
+    )
+
+    doc.add_paragraph()
+    note_heading = doc.add_paragraph()
+    note_heading.add_run("A note on accuracy").bold = True
+    doc.add_paragraph(
+        "Legislation and standards cited in this material were current at the date of issue. "
+        "Learners and facilitators must verify the current status of any provision before "
+        "relying on it in practice. Where this material and a statute differ, the statute governs."
+    )
+    doc.add_page_break()
+def _add_learner_registration_details(doc: Document, primary: RGBColor, primary_hex: str):
+    """Condensed learner registration details page — based on the QCTO's official Learner
+    Enrolment and Readiness for EISA data specification (32 fields across 6 parts),
+    narrowed to the essential, non-duplicate fields and kept to roughly 2 pages. Shared
+    across Learner Guides, POE documents, and other learner-facing material, so it isn't
+    rebuilt or duplicated per document type."""
+    heading = doc.add_paragraph()
+    h_run = heading.add_run("Learner Registration Details")
+    h_run.bold = True
+    h_run.font.size = Pt(16)
+    h_run.font.color.rgb = primary
+    _add_bottom_border(heading, primary_hex)
+
+    note = doc.add_paragraph()
+    note.add_run(
+        "Complete this page before your first contact session. This information is "
+        "required by the QCTO for your enrolment record and is used for no other purpose."
+    ).italic = True
+
+    groups = [
+        ("Personal Details", [
+            "Title", "Surname", "First Name", "Middle Name (if any)",
+            "South African ID Number", "Date of Birth (YYYYMMDD)",
+            "Population Group", "Nationality", "Home Language", "Gender",
+            "Citizen/Resident Status",
+        ]),
+        ("Address", [
+            "Home Address", "Postal Address (if different)", "Postal Code", "Province",
+        ]),
+        ("Contact Details", [
+            "Telephone Number", "Cellphone Number", "Email Address",
+        ]),
+        ("Additional Information", [
+            "Socio-Economic Status", "Disability Status (if any)",
+        ]),
+        ("Consent", [
+            "I agree to my personal information being used for enrolment, assessment and certification (Yes/No)",
+            "Date Signed",
+        ]),
+    ]
+
+    for group_name, fields in groups:
+        gh = doc.add_paragraph()
+        gh.add_run(group_name).bold = True
+        gh.runs[0].font.size = Pt(11)
+        table = doc.add_table(rows=0, cols=2)
+        table.style = "Table Grid"
+        for field in fields:
+            row = table.add_row()
+            row.cells[0].text = field
+            row.cells[0].paragraphs[0].runs[0].bold = True
+            row.cells[0].paragraphs[0].runs[0].font.size = Pt(10)
+        doc.add_paragraph()
+
+    doc.add_page_break()
+
 
 def _add_signature_block(doc: Document):
     """Adds Learner/Facilitator/Assessor-Moderator signature lines — appended to every

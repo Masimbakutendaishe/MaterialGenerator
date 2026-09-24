@@ -14,7 +14,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_facilitator_guide_content, generate_model_answers_for_questions, parallel_map
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _element_text, _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _element_text, _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -42,7 +42,7 @@ def _add_km_fg_introduction(doc, primary, primary_hex, secondary):
         _add_bottom_border(p, primary_hex, size="8")
         return p
 
-    _section_heading("Facilitator Guide Introduction", size=18)
+    _section_heading("SME/Facilitator Guide Introduction", size=18)
 
     _section_heading("Facilitation Methodology", size=14)
 
@@ -57,9 +57,9 @@ def _add_km_fg_introduction(doc, primary, primary_hex, secondary):
 
     doc.add_paragraph("Human Resource Requirements:").runs[0].bold = True
     for item in [
-        "Facilitators of learning with subject matter expertise in the field covered by this module",
-        "Facilitators who have achieved a nationally accepted standard in the delivery of occupational learning",
-        "Facilitators of learning who have achieved a recognised learning standard in assessment practice",
+        "SMEs/Facilitators of learning with subject matter expertise in the field covered by this module",
+        "SMEs/Facilitators who have achieved a nationally accepted standard in the delivery of occupational learning",
+        "SMEs/Facilitators of learning who have achieved a recognised learning standard in assessment practice",
         "Not more than 20 learners per facilitator",
     ]:
         doc.add_paragraph(item, style="List Bullet")
@@ -208,7 +208,7 @@ def _add_km_fg_project_assignment(doc, primary, primary_hex):
 
 def _add_km_fg_preparation(doc, primary, primary_hex):
     heading = doc.add_paragraph()
-    h_run = heading.add_run("Facilitator Preparation")
+    h_run = heading.add_run("SME/Facilitator Preparation")
     h_run.bold = True
     h_run.font.size = Pt(18)
     h_run.font.color.rgb = primary
@@ -216,7 +216,7 @@ def _add_km_fg_preparation(doc, primary, primary_hex):
     _add_bottom_border(heading, primary_hex)
 
     doc.add_paragraph("Review the material set in the trainer's file, which consists of the following documentation:")
-    for item in ["Facilitator Guide", "Learner Guide", "Formative Assessment Guide", "Learner POE Guide", "Assessor Guide"]:
+    for item in ["SME/Facilitator Guide", "Learner Guide", "Formative Assessment Guide", "Learner POE/Workbook Guide", "Assessor Guide"]:
         doc.add_paragraph(item, style="List Bullet")
 
     doc.add_paragraph()
@@ -238,7 +238,7 @@ def _add_km_fg_preparation(doc, primary, primary_hex):
 
 def _add_km_fg_feedback_report(doc, primary, primary_hex):
     heading = doc.add_paragraph()
-    h_run = heading.add_run("Facilitator Feedback Report")
+    h_run = heading.add_run("SME/Facilitator Feedback Report")
     h_run.bold = True
     h_run.font.size = Pt(18)
     h_run.font.color.rgb = primary
@@ -360,7 +360,9 @@ def build_qcto_km_facilitator_guide_docx(title: str, syllabus_content: dict, org
     km_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "KM"]
 
     doc = Document()
-    _build_branded_cover(doc, qualification_title, "KM Facilitator Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
+
+    _set_default_font(doc, brand_colors.get("font"))
+    _build_branded_cover(doc, qualification_title, "KM Subject Matter Expert/Facilitator Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_km_fg_toc(doc, primary, primary_hex, day_count=len(km_modules) or 1)
     _add_km_fg_introduction(doc, primary, primary_hex, secondary)
@@ -509,7 +511,7 @@ def build_qcto_km_facilitator_guide_docx(title: str, syllabus_content: dict, org
     sig_p = doc.add_paragraph()
     sig_p.add_run("Assessor Signature: " + "_" * 30 + "     Date: " + "_" * 20)
 
-    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=qualification_title, organization_name=organization_name, primary_hex=primary_hex, accreditation_info=accreditation_info, document_label="KM Facilitator Guide")
+    _add_branded_header_footer(doc, logo_bytes=logo_bytes, qualification_name=qualification_title, organization_name=organization_name, primary_hex=primary_hex, accreditation_info=accreditation_info, document_label="KM Subject Matter Expert/Facilitator Guide")
 
     buffer = BytesIO()
     doc.save(buffer)

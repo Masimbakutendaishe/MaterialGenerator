@@ -4,7 +4,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_assessment_questions
-from app.services.document_service import _add_branded_header_footer
+from app.services.document_service import _add_branded_header_footer, _set_default_font
 
 DEFAULT_PRIMARY = "1A5276"
 
@@ -24,6 +24,7 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
 
     doc = Document()
+    _set_default_font(doc, brand_colors.get("font"))
 
     from app.services.document_service import _build_branded_cover
     _build_branded_cover(doc, title, doc_label, organization_name, logo_bytes, primary, primary_hex, RGBColor(0x28, 0x74, 0xA6))

@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_guide_section_content
-from app.services.document_service import _hex_to_rgb, _add_bottom_border, _render_content_block, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT
+from app.services.document_service import _hex_to_rgb, _add_bottom_border, _render_content_block, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font
 
 DOCUMENT_LABELS = {
     "learner_manual": "Learner Manual",
@@ -31,7 +31,7 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
     label = DOCUMENT_LABELS.get(document_subtype, document_subtype.replace("_", " ").title())
 
     doc = Document()
-    doc.styles["Normal"].font.name = "Calibri"
+    _set_default_font(doc, brand_colors.get("font"))
     doc.styles["Normal"].font.size = Pt(11)
 
     from app.services.document_service import _build_branded_cover

@@ -27,8 +27,39 @@
     </svg>
     Edit Module/Topic Structure
 </a>
+{% if syllabus.content.get('extraction_warnings') %}
+<form method="POST" action="{{ url_for('syllabus_web.retry_extraction', syllabus_id=syllabus.id) }}" class="inline mt-2">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="text-amber-600 text-sm hover:underline inline-flex items-center gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Retry Failed Extraction ({{ syllabus.content.get('extraction_warnings')|length }} module(s))
+    </button>
+</form>
+{% endif %}
 {% endif %}
 </div>
+
+{% if syllabus.syllabus_type == 'qcto' and syllabus.status != 'processing' %}
+<div class="bg-white rounded-lg border border-steel-200 p-4 mb-6 text-sm">
+    <p class="font-medium text-navy-950 mb-1">External Assessment Specification</p>
+    {% if syllabus.content.get('exit_level_outcomes') %}
+        <p class="text-steel-500">{{ syllabus.content.get('exit_level_outcomes')|length }} Exit Level Outcome(s) on file — used to build the Rollout Plan.</p>
+        <a href="{{ url_for('syllabus_web.view_eas_file', syllabus_id=syllabus.id) }}" target="_blank" class="text-signal text-xs hover:underline">View uploaded document</a>
+    {% elif syllabus.eas_file_key %}
+        <p class="text-steel-500">Uploaded, still processing — check back shortly.</p>
+        <a href="{{ url_for('syllabus_web.view_eas_file', syllabus_id=syllabus.id) }}" target="_blank" class="text-signal text-xs hover:underline">View uploaded document</a>
+    {% else %}
+        <p class="text-steel-400 mb-2">Not uploaded yet. Optional — used to build the Rollout Plan's Exit Level Outcome guidance.</p>
+        <form method="POST" action="{{ url_for('syllabus_web.upload_eas', syllabus_id=syllabus.id) }}" enctype="multipart/form-data" class="flex items-center gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="file" name="eas_file" accept=".pdf,.docx,.doc" class="text-sm">
+            <button type="submit" class="bg-navy-950 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-navy-900 transition">Upload</button>
+        </form>
+    {% endif %}
+</div>
+{% endif %}
 
 {% if syllabus.status == 'processing' %}
 <div class="bg-blue-50 border-l-4 border-signal text-navy-950 px-4 py-3 rounded mb-6 text-sm flex items-center justify-between gap-2">

@@ -42,12 +42,19 @@ def update():
     primary = request.form.get("primary")
     secondary = request.form.get("secondary")
     accent = request.form.get("accent")
-    if primary or secondary or accent:
+    font = request.form.get("font")
+    if primary or secondary or accent or font:
         org.brand_colors = {
             "primary": primary or (org.brand_colors or {}).get("primary"),
             "secondary": secondary or (org.brand_colors or {}).get("secondary"),
             "accent": accent or (org.brand_colors or {}).get("accent"),
+            "font": font or (org.brand_colors or {}).get("font"),
         }
+
+    org.address = request.form.get("address") or org.address
+    org.phone = request.form.get("phone") or org.phone
+    org.email = request.form.get("email") or org.email
+    org.website = request.form.get("website") or org.website
 
     db.session.commit()
     flash("Branding updated.")

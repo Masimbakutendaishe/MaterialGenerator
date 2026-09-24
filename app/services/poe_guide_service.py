@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from app.services.ai_service import _call_model, _repair_json_string
 from app.services.document_service import (
-    _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer, DEFAULT_PRIMARY,
+    _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer, DEFAULT_PRIMARY, _set_default_font,
 )
 import json
 
@@ -55,6 +55,8 @@ def build_poe_guide_docx(title: str, units: list, organization_name: str = None,
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, title, "Portfolio of Evidence", organization_name, logo_bytes, primary, primary_hex, primary)
 
     intro = doc.add_paragraph()

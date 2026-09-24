@@ -11,7 +11,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -221,6 +221,8 @@ def build_qcto_wm_supervisor_guide_docx(title: str, syllabus_content: dict, orga
     wm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "WM"]
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "WM Guide for Industry Supervisors", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_sup_welcome(doc, qualification_title, primary, primary_hex)

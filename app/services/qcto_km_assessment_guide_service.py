@@ -16,7 +16,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _add_toc_field, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -97,7 +97,7 @@ def _add_ag_steps(doc, qualification_title, primary, primary_hex, secondary):
     _section_heading(doc, "Assessment Steps", primary, primary_hex)
 
     km_learner_guide = "KM Learner Guide"
-    km_facilitator_guide = "KM Facilitator Guide"
+    km_facilitator_guide = "KM Subject Matter Expert/Facilitator Guide"
     km_formative_assessment = "KM Formative Assessment"
 
     steps = [
@@ -197,7 +197,7 @@ def _add_ag_role_players(doc, primary, primary_hex, secondary):
     )
 
     facilitator_heading = doc.add_paragraph()
-    facilitator_heading.add_run("Facilitator").bold = True
+    facilitator_heading.add_run("SME (Subject Matter Expert)").bold = True
     facilitator_heading.runs[0].font.color.rgb = secondary
     doc.add_paragraph(
         "It is the role of the facilitator to facilitate the theoretical classroom training "
@@ -449,7 +449,7 @@ def _add_ag_marking_memo(doc, km_modules, primary, primary_hex):
     _section_heading(doc, "Summative Assessment Marking Memo", primary, primary_hex)
     doc.add_paragraph(
         "The learner needs to individually complete the summative assessment activities in "
-        "the KM Formative Assessment. Assessor, use the KM Facilitator Guide's Marking "
+        "the KM Formative Assessment. Assessor, use the KM Subject Matter Expert/Facilitator Guide's Marking "
         "Memorandum as a guide to assess the following knowledge areas in the learner's "
         "submission:"
     )
@@ -460,7 +460,7 @@ def _add_ag_marking_memo(doc, km_modules, primary, primary_hex):
     doc.add_paragraph()
     doc.add_paragraph("Assessor Notes:").runs[0].bold = True
     doc.add_paragraph(
-        "Use the KM Facilitator Guide's Marking Memorandum to mark the knowledge questions. "
+        "Use the KM Subject Matter Expert/Facilitator Guide's Marking Memorandum to mark the knowledge questions. "
         "Complete the Assessment Details and Assessment Logistics sections of this guide to "
         "record your findings."
     )
@@ -474,7 +474,7 @@ def _add_ag_poe_guide(doc, primary, primary_hex):
     doc.add_paragraph(
         "The learner answers the knowledge questions in the KM Formative Assessment, based "
         "on the theory covered in the KM Learner Guide. Assessor Notes: use the KM "
-        "Facilitator Guide's Marking Memorandum to mark the knowledge questions, and record "
+        "SME/Facilitator Guide's Marking Memorandum to mark the knowledge questions, and record "
         "your findings in the Assessment Details section of this guide."
     )
 
@@ -534,6 +534,8 @@ def build_qcto_km_assessment_guide_docx(title: str, syllabus_content: dict, orga
     km_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "KM"]
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "KM Assessment Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_ag_cover_details(doc, qualification_title, primary, primary_hex)

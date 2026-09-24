@@ -26,77 +26,85 @@ def _pptx_rgb(hex_str, fallback):
         return RGBColor.from_string(fallback)
 
 
-def _add_split_top_bar(slide, prs, color_left, color_right):
-    """Two-tone top bar: left two-thirds in primary, right third in secondary — matches
-    the house style used across every presentation this app generates."""
-    bar_height = Emu(137160)
-    split_point = int(prs.slide_width * 0.65)
-    left_bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Emu(0), Emu(0), split_point, bar_height)
-    left_bar.fill.solid()
-    left_bar.fill.fore_color.rgb = color_left
-    left_bar.line.fill.background()
-    right_bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, split_point, Emu(0), prs.slide_width - split_point, bar_height)
-    right_bar.fill.solid()
-    right_bar.fill.fore_color.rgb = color_right
-    right_bar.line.fill.background()
+def _add_footer_lines(slide, prs, module_line, contact_line, page_number, primary):
+    """Clean, text-only footer — module code/title on one small line, organization
+    contact details on a second line beneath it, page number at the right. No background
+    band or decorative bar."""
+    footer_top = prs.slide_height - Inches(0.55)
+    box = slide.shapes.add_textbox(Inches(0.5), footer_top, prs.slide_width - Inches(1.8), Inches(0.45))
+    tf = box.text_frame
+    tf.margin_top = Emu(0)
+    tf.margin_bottom = Emu(0)
+    tf.word_wrap = True
+    p1 = tf.paragraphs[0]
+    p1.text = module_line
+    p1.runs[0].font.size = Pt(9)
+    p1.runs[0].font.color.rgb = primary
+    if contact_line:
+        p2 = tf.add_paragraph()
+        p2.text = contact_line
+        p2.runs[0].font.size = Pt(7)
+        p2.runs[0].font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+
+    page_box = slide.shapes.add_textbox(prs.slide_width - Inches(1.2), footer_top, Inches(0.9), Inches(0.3))
+    p_tf = page_box.text_frame
+    p_tf.margin_top = Emu(0)
+    p = p_tf.paragraphs[0]
+    p.alignment = PP_ALIGN.RIGHT
+    p.text = str(page_number)
+    p.runs[0].font.size = Pt(9)
+    p.runs[0].font.color.rgb = primary
 
 
-def _add_corner_flag(slide, accent):
-    flag = slide.shapes.add_shape(MSO_SHAPE.PENTAGON, Emu(0), Emu(137160), Inches(1.4), Inches(0.35))
-    flag.fill.solid()
-    flag.fill.fore_color.rgb = accent
-    flag.line.fill.background()
-    flag.rotation = 180
+def _add_eyebrow(slide, prs, text, color):
+    """Small, bold label above a slide's main title."""
+    box = slide.shapes.add_textbox(Inches(0.5), Inches(0.35), prs.slide_width - Inches(1.0), Inches(0.4))
+    tf = box.text_frame
+    tf.margin_top = Emu(0)
+    p = tf.paragraphs[0]
+    p.text = text.upper()
+    p.runs[0].font.size = Pt(12)
+    p.runs[0].font.bold = True
+    p.runs[0].font.color.rgb = color
 
 
-def _add_footer_band(slide, prs, organization_name, primary, page_number=None):
-    """Solid corporate footer band — organization name on the left, page number on the
-    right. Page numbers restart at 1 per module deck, since each is a standalone
-    downloadable file a facilitator would present independently."""
-    footer_height = Emu(320040)
-    footer_top = prs.slide_height - footer_height
-    footer = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Emu(0), footer_top, prs.slide_width, footer_height)
-    footer.fill.solid()
-    footer.fill.fore_color.rgb = primary
-    footer.line.fill.background()
-
-    if organization_name:
-        tf = footer.text_frame
-        tf.margin_left = Inches(0.3)
-        tf.margin_top = Emu(0)
-        tf.margin_bottom = Emu(0)
-        tf.paragraphs[0].text = organization_name
-        run = tf.paragraphs[0].runs[0]
-        run.font.size = Pt(10)
-        run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
-
-    if page_number is not None:
-        page_box = slide.shapes.add_textbox(prs.slide_width - Inches(1.2), footer_top, Inches(0.9), footer_height)
-        p_tf = page_box.text_frame
-        p_tf.margin_top = Emu(0)
-        p_tf.margin_bottom = Emu(0)
-        p_p = p_tf.paragraphs[0]
-        p_p.alignment = PP_ALIGN.RIGHT
-        p_run = p_p.add_run()
-        p_run.text = str(page_number)
-        p_run.font.size = Pt(10)
-        p_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+def _compute_bullet_font_size(bullets):
+    """Scales bullet font size down as content grows, so text stays within the slide
+    body area rather than overflowing it."""
+    total_chars = sum(len(b) for b in bullets)
+    if total_chars > 700 or len(bullets) > 7:
+        return 14
+    if total_chars > 500 or len(bullets) > 6:
+        return 16
+    if total_chars > 350:
+        return 18
+    return 20
 
 
-def _build_pm_module_deck(module, qualification_title, organization_name, brand_colors, logo_bytes=None, job_id=None):
+def _build_pm_module_deck(module, qualification_title, organization_name, brand_colors, logo_bytes=None,
+                           accreditation_info=None, job_id=None):
     primary = _pptx_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
     secondary = _pptx_rgb(brand_colors.get("secondary"), DEFAULT_SECONDARY)
-    accent = _pptx_rgb(brand_colors.get("accent"), DEFAULT_ACCENT)
+    accreditation_info = accreditation_info or {}
+
+    module_line_parts = [module.get("module_code", ""), module.get("title", "")]
+    module_line = " · ".join(p for p in module_line_parts if p)
+    contact_bits = [b for b in [
+        accreditation_info.get("organization_address"),
+        accreditation_info.get("organization_phone"),
+        accreditation_info.get("organization_email"),
+        accreditation_info.get("organization_website"),
+    ] if b]
+    contact_line = "  ·  ".join(contact_bits)
 
     prs = Presentation()
     module_title = f"{module.get('module_code', '')}: {module.get('title', '')}"
+    page_number = 1
 
     # --- Title slide ---
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
-    _add_split_top_bar(slide, prs, primary, secondary)
-    _add_corner_flag(slide, accent)
-    _add_footer_band(slide, prs, organization_name, primary, page_number=1)
+    _add_footer_lines(slide, prs, module_line, contact_line, page_number, primary)
 
     slide.shapes.title.text = module_title
     title_run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
@@ -113,21 +121,43 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
 
     if logo_bytes:
         try:
-            slide.shapes.add_picture(BytesIO(logo_bytes), Inches(0.4), Inches(0.55), height=Inches(0.9))
+            slide.shapes.add_picture(BytesIO(logo_bytes), Inches(0.4), Inches(0.4), height=Inches(0.9))
         except Exception:
-            pass  # unsupported image format for python-pptx (e.g. SVG) — skip rather than fail the deck
-
-    # --- Content slides: real AI-generated teach/practice pairs per performance-assessment item ---
-    # PM's real assessment criteria live at module level, not per-item — shared as the
-    # grounding "outcomes" input across every item's generated content, the real, honest
-    # granularity the source data supports (no fabricated per-item criteria).
-    module_criteria = module.get("assessment_criteria") or []
-
-    page_number = 2
-    bullet_layout = prs.slide_layouts[1]
+            pass
 
     pa_items = module.get("performance_assessment", [])
     pa_texts = [pa.get("text", "") if isinstance(pa, dict) else (pa or "") for pa in pa_items]
+    pa_codes = [pa.get("code", "") if isinstance(pa, dict) else "" for pa in pa_items]
+
+    # --- Overview slide ---
+    page_number += 1
+    overview_slide = prs.slides.add_slide(prs.slide_layouts[1])
+    _add_footer_lines(overview_slide, prs, module_line, contact_line, page_number, primary)
+    overview_title = overview_slide.shapes.title
+    overview_title.left = Inches(0.5)
+    overview_title.top = Inches(0.5)
+    overview_title.width = prs.slide_width - Inches(1.0)
+    overview_title.text = "What This Module Covers"
+    overview_title.text_frame.paragraphs[0].runs[0].font.color.rgb = primary
+    overview_title.text_frame.paragraphs[0].runs[0].font.bold = True
+
+    overview_body = overview_slide.placeholders[1]
+    overview_body.left = Inches(0.5)
+    overview_body.top = Inches(1.6)
+    overview_body.width = prs.slide_width - Inches(1.0)
+    overview_body.height = prs.slide_height - Inches(2.2)
+    overview_body.text_frame.clear()
+    overview_body.text_frame.word_wrap = True
+    overview_lines = [f"{code} {text}" if code else text for code, text in zip(pa_codes, pa_texts)]
+    for i, line in enumerate(overview_lines):
+        p = overview_body.text_frame.paragraphs[0] if i == 0 else overview_body.text_frame.add_paragraph()
+        p.text = line
+        p.font.size = Pt(16)
+
+    # --- Content slides: real AI-generated teach/practice pairs per performance-assessment
+    # item, with a section-divider slide introducing each item first ---
+    module_criteria = module.get("assessment_criteria") or []
+    bullet_layout = prs.slide_layouts[1]
 
     pa_results = parallel_map(
         pa_texts,
@@ -135,10 +165,30 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
         max_workers=3,
     )
 
-    for pa_text, result in zip(pa_texts, pa_results):
+    for item_index, (pa_code, pa_text, result) in enumerate(zip(pa_codes, pa_texts, pa_results), start=1):
+        # Section divider slide
+        page_number += 1
+        divider = prs.slides.add_slide(prs.slide_layouts[6])
+        _add_footer_lines(divider, prs, module_line, contact_line, page_number, primary)
+        divider_box = divider.shapes.add_textbox(Inches(0.8), Inches(2.6), prs.slide_width - Inches(1.6), Inches(2.0))
+        d_tf = divider_box.text_frame
+        d_tf.word_wrap = True
+        d_p1 = d_tf.paragraphs[0]
+        d_p1.text = f"PRACTICAL SKILL {item_index}" + (f"  ·  {pa_code}" if pa_code else "")
+        d_p1.runs[0].font.size = Pt(16)
+        d_p1.runs[0].font.bold = True
+        d_p1.runs[0].font.color.rgb = secondary
+        d_p2 = d_tf.add_paragraph()
+        d_p2.text = pa_text
+        d_p2.runs[0].font.size = Pt(26)
+        d_p2.runs[0].font.bold = True
+        d_p2.runs[0].font.color.rgb = primary
+
         if result is None:
             continue
+
         for slide_data in result.get("slides", []):
+            page_number += 1
             slide_title = slide_data.get("title", pa_text)
             bullets = slide_data.get("bullets", [])
             speaker_notes = slide_data.get("speaker_notes", "")
@@ -150,13 +200,12 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
                 photo_bytes = fetch_stock_photo(image_search_term)
 
             slide = prs.slides.add_slide(bullet_layout)
-            _add_split_top_bar(slide, prs, primary, secondary)
-            _add_corner_flag(slide, accent)
-            _add_footer_band(slide, prs, organization_name, primary, page_number=page_number)
+            _add_footer_lines(slide, prs, module_line, contact_line, page_number, primary)
+            _add_eyebrow(slide, prs, (f"{pa_code}  " if pa_code else "") + pa_text, secondary)
 
             title_shape = slide.shapes.title
             title_shape.left = Inches(0.5)
-            title_shape.top = Inches(1.0)
+            title_shape.top = Inches(0.85)
             title_shape.width = prs.slide_width - Inches(1.0)
             title_shape.height = Inches(1.0)
             title_shape.text = slide_title
@@ -169,27 +218,27 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
 
             body = slide.placeholders[1]
             body.left = Inches(0.5)
-            body.top = Inches(2.2)
+            body.top = Inches(2.0)
             body.width = body_width
-            body.height = prs.slide_height - Inches(2.7)
+            body.height = prs.slide_height - Inches(2.5)
             body.text_frame.clear()
+            body.text_frame.word_wrap = True
+            bullet_font_size = _compute_bullet_font_size(bullets)
             for i, bullet in enumerate(bullets):
                 p = body.text_frame.paragraphs[0] if i == 0 else body.text_frame.add_paragraph()
                 p.text = bullet
-                p.font.size = Pt(20)
+                p.font.size = Pt(bullet_font_size)
 
             if photo_bytes:
                 image_left = Inches(0.5) + body_width + Inches(0.3)
                 image_width = content_width - body_width - Inches(0.3)
                 slide.shapes.add_picture(
-                    BytesIO(photo_bytes), image_left, Inches(2.2),
-                    width=image_width, height=prs.slide_height - Inches(2.7),
+                    BytesIO(photo_bytes), image_left, Inches(2.0),
+                    width=image_width, height=prs.slide_height - Inches(2.5),
                 )
 
             if speaker_notes:
                 slide.notes_slide.notes_text_frame.text = speaker_notes
-
-            page_number += 1
 
     buf = BytesIO()
     prs.save(buf)
@@ -199,8 +248,9 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
 
 def build_qcto_pm_powerpoint_zip(title: str, syllabus_content: dict, organization_name: str = None,
                                   logo_bytes: bytes = None, brand_colors: dict = None,
-                                  job_id: str = None) -> BytesIO:
+                                  accreditation_info: dict = None, job_id: str = None) -> BytesIO:
     brand_colors = brand_colors or {}
+    accreditation_info = accreditation_info or {}
     qualification_title = syllabus_content.get("qualification_title", "") or title
 
     pm_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "PM"]
@@ -208,7 +258,7 @@ def build_qcto_pm_powerpoint_zip(title: str, syllabus_content: dict, organizatio
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for module in pm_modules:
-            deck_buf = _build_pm_module_deck(module, qualification_title, organization_name, brand_colors, logo_bytes, job_id=job_id)
+            deck_buf = _build_pm_module_deck(module, qualification_title, organization_name, brand_colors, logo_bytes, accreditation_info=accreditation_info, job_id=job_id)
             safe_title = "".join(c if c.isalnum() or c in " _-" else "" for c in module.get("title", "Module")).strip().replace(" ", "_")
             filename = f"{module.get('module_code', 'Module')}_{safe_title}.pptx"
             zf.writestr(filename, deck_buf.getvalue())
@@ -219,7 +269,7 @@ def build_qcto_pm_powerpoint_zip(title: str, syllabus_content: dict, organizatio
 
 def build_qcto_pm_powerpoint_zip_adapter(title, units, organization_name=None, seta=None,
                                            nqf_level=None, logo_bytes=None, brand_colors=None,
-                                           job_id=None, **kwargs):
+                                           accreditation_info=None, job_id=None, **kwargs):
     """Adapter matching the standard DOCUMENT_BUILDERS call signature."""
     syllabus_content = {"modules": units} if isinstance(units, list) else (units or {"modules": []})
     return build_qcto_pm_powerpoint_zip(
@@ -228,5 +278,6 @@ def build_qcto_pm_powerpoint_zip_adapter(title, units, organization_name=None, s
         organization_name=organization_name,
         logo_bytes=logo_bytes,
         brand_colors=brand_colors,
+        accreditation_info=accreditation_info,
         job_id=job_id,
     )

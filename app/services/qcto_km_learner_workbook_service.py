@@ -10,7 +10,7 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _element_text, _element_code, DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    _element_text, _element_code, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -162,6 +162,8 @@ def build_qcto_km_learner_workbook_docx(title: str, syllabus_content: dict, orga
     km_modules = [m for m in syllabus_content.get("modules", []) if m.get("module_type") == "KM"]
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "KM Learner Workbook", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_workbook_intro(doc, primary, primary_hex)

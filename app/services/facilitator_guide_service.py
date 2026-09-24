@@ -6,7 +6,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_facilitator_guide_content
-from app.services.document_service import _hex_to_rgb, _add_bottom_border, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY
+from app.services.document_service import _hex_to_rgb, _add_bottom_border, _add_page_numbers, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font
 
 
 def build_facilitator_guide_docx(title: str, units: list, organization_name: str = None,
@@ -18,6 +18,7 @@ def build_facilitator_guide_docx(title: str, units: list, organization_name: str
     secondary = _hex_to_rgb(brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY, DEFAULT_SECONDARY)
 
     doc = Document()
+    _set_default_font(doc, brand_colors.get("font"))
 
     from app.services.document_service import _build_branded_cover
     _build_branded_cover(doc, title, "Assessor Guide", organization_name, logo_bytes, primary, primary_hex, secondary)

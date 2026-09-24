@@ -32,6 +32,11 @@ from app.services.qcto_wm_supervisor_guide_service import build_qcto_wm_supervis
 from app.services.qcto_final_exam_service import build_qcto_final_exam_docx_adapter
 from app.services.qcto_fisa_service import build_qcto_fisa_docx_adapter
 from app.services.qcto_learning_matrix_service import build_qcto_learning_matrix_docx_adapter
+from app.services.qcto_km_assessment_memo_service import build_qcto_km_assessment_memo_docx_adapter
+from app.services.qcto_pm_assessment_memo_service import build_qcto_pm_assessment_memo_docx_adapter
+from app.services.qcto_km_poe_memo_service import build_qcto_km_poe_memo_docx_adapter
+from app.services.qcto_reference_documents_service import build_qcto_reference_documents_docx_adapter
+from app.services.qcto_wm_statement_of_work_service import build_qcto_wm_statement_of_work_docx_adapter
 from app.services.qcto_km_powerpoint_service import build_qcto_km_powerpoint_zip_adapter
 from app.services.qcto_pm_powerpoint_service import build_qcto_pm_powerpoint_zip_adapter
 
@@ -53,7 +58,12 @@ def generate_textbook_task(job_id: str):
             units = syllabus.content.get("modules", [])
         else:
             units = syllabus.content.get("units", [])
-        accreditation = syllabus.accreditation_info or {}
+        accreditation = dict(syllabus.accreditation_info or {})
+        if organization:
+            accreditation.setdefault("organization_address", organization.address)
+            accreditation.setdefault("organization_phone", organization.phone)
+            accreditation.setdefault("organization_email", organization.email)
+            accreditation.setdefault("organization_website", organization.website)
 
         logo_bytes = None
         if organization and organization.logo_url:
@@ -141,7 +151,12 @@ def generate_presentation_task(job_id: str):
             units = syllabus.content.get("modules", [])
         else:
             units = syllabus.content.get("units", [])
-        accreditation = syllabus.accreditation_info or {}
+        accreditation = dict(syllabus.accreditation_info or {})
+        if organization:
+            accreditation.setdefault("organization_address", organization.address)
+            accreditation.setdefault("organization_phone", organization.phone)
+            accreditation.setdefault("organization_email", organization.email)
+            accreditation.setdefault("organization_website", organization.website)
 
         logo_bytes = None
         if organization and organization.logo_url:
@@ -220,9 +235,14 @@ DOCUMENT_BUILDERS = {
     "qcto_pm_assessment_guide": (build_qcto_pm_assessment_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "qcto_pm_poe": (build_qcto_pm_poe_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "qcto_wm_supervisor_guide": (build_qcto_wm_supervisor_guide_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    "qcto_final_exam": (build_qcto_final_exam_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_final_exam": (build_qcto_final_exam_docx_adapter, "zip", "application/zip"),
     "qcto_fisa": (build_qcto_fisa_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "qcto_learning_matrix": (build_qcto_learning_matrix_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_assessment_memo": (build_qcto_km_assessment_memo_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_pm_assessment_memo": (build_qcto_pm_assessment_memo_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_km_poe_memo": (build_qcto_km_poe_memo_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_reference_documents": (build_qcto_reference_documents_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    "qcto_wm_statement_of_work": (build_qcto_wm_statement_of_work_docx_adapter, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "qcto_km_powerpoint": (build_qcto_km_powerpoint_zip_adapter, "zip", "application/zip"),
     "qcto_pm_powerpoint": (build_qcto_pm_powerpoint_zip_adapter, "zip", "application/zip"),
 }
@@ -245,6 +265,53 @@ def _get_or_generate_km_assessment_content(syllabus, module, job_id=None):
 
     # Fresh reassignment — plain db.JSON columns don't auto-detect in-place mutation of
     # nested dicts/lists, so this forces SQLAlchemy to recognize the change on commit.
+    modules = syllabus.content.get("modules", [])
+    syllabus.content = {**syllabus.content, "modules": modules}
+    db.session.commit()
+    return content
+
+
+def _get_or_generate_km_poe_questions(syllabus, topic, job_id=None):
+    """Returns cached formative-assessment questions for a KM topic if already generated
+    and persisted on the syllabus; otherwise generates it once via
+    generate_km_formative_questions, persists it onto the topic dict (nested within its
+    module, within the syllabus's content), commits, and returns it — so the KM POE
+    document and a KM POE Memorandum read the exact same real questions, rather than each
+    independently generating its own, different set. topic is a reference into the same
+    nested structure held by syllabus.content, so mutating it in place propagates up
+    through the module it belongs to."""
+    from app.services.ai_service import generate_km_formative_questions
+
+    cached = topic.get("generated_km_poe_questions")
+    if cached:
+        return cached
+
+    content = generate_km_formative_questions(topic, job_id=job_id)
+    topic["generated_km_poe_questions"] = content
+
+    # Fresh reassignment — plain db.JSON columns don't auto-detect in-place mutation of
+    # nested dicts/lists, so this forces SQLAlchemy to recognize the change on commit.
+    modules = syllabus.content.get("modules", [])
+    syllabus.content = {**syllabus.content, "modules": modules}
+    db.session.commit()
+    return content
+
+
+def _get_or_generate_pm_assessment_content(syllabus, module, job_id=None):
+    """PM analog of _get_or_generate_km_assessment_content — PM Assessment previously had
+    no persistent caching at all, meaning every generation of the PM Assessment document
+    produced genuinely different questions, and a PM Assessment Memorandum could never
+    reliably correspond to a specific generated instance of it. Caches onto
+    generated_pm_assessment so both documents read the exact same real questions."""
+    from app.services.ai_service import generate_qcto_assessment_content
+
+    cached = module.get("generated_pm_assessment")
+    if cached:
+        return cached
+
+    content = generate_qcto_assessment_content(module, job_id=job_id)
+    module["generated_pm_assessment"] = content
+
     modules = syllabus.content.get("modules", [])
     syllabus.content = {**syllabus.content, "modules": modules}
     db.session.commit()
@@ -395,7 +462,12 @@ def generate_package_document_task(job_id: str):
             units = syllabus.content.get("modules", [])
         else:
             units = syllabus.content.get("units", [])
-        accreditation = syllabus.accreditation_info or {}
+        accreditation = dict(syllabus.accreditation_info or {})
+        if organization:
+            accreditation.setdefault("organization_address", organization.address)
+            accreditation.setdefault("organization_phone", organization.phone)
+            accreditation.setdefault("organization_email", organization.email)
+            accreditation.setdefault("organization_website", organization.website)
 
         # Every per-module/per-unit caching call below is individually wrapped in
         # try/except — a module or unit that fails (e.g. the whole AI provider chain
@@ -423,6 +495,26 @@ def generate_package_document_task(job_id: str):
                     except Exception as module_exc:
                         print(f"[RESUME] {module.get('module_code', '')} PM scenario groups failed, will retry later: {module_exc}")
                         continue
+
+        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_pm_assessment", "qcto_pm_assessment_memo"):
+            for module in units:
+                if module.get("module_type") == "PM":
+                    try:
+                        _get_or_generate_pm_assessment_content(syllabus, module, job_id=job.id)
+                    except Exception as module_exc:
+                        print(f"[RESUME] {module.get('module_code', '')} PM assessment content failed, will retry later: {module_exc}")
+                        continue
+
+        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_km_poe", "qcto_km_poe_memo"):
+            for module in units:
+                if module.get("module_type") == "KM":
+                    for topic in module.get("topics", []):
+                        if topic.get("assessment_criteria"):
+                            try:
+                                _get_or_generate_km_poe_questions(syllabus, topic, job_id=job.id)
+                            except Exception as topic_exc:
+                                print(f"[RESUME] {topic.get('topic_code', '')} KM POE questions failed, will retry later: {topic_exc}")
+                                continue
 
         if syllabus.syllabus_type == "qcto" and subtype in ("qcto_knowledge_modules", "qcto_learning_matrix"):
             for module in units:

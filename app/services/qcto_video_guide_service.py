@@ -10,7 +10,7 @@ from app.services.ai_service import generate_qcto_video_guide_content
 from app.services.image_service import fetch_stock_photo
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_page_numbers, _add_bottom_border, _add_hyperlink,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 
@@ -24,6 +24,8 @@ def build_qcto_video_guide_docx(title: str, syllabus_content: dict, organization
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, title, "Video Resource Guide", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     preface_heading = doc.add_paragraph()

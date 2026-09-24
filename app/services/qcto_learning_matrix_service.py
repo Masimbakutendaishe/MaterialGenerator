@@ -23,7 +23,7 @@ from app.services.ai_service import (
 )
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
 )
 
 # Calibrated for this document's formatting (headings, tables, spacing between
@@ -237,25 +237,89 @@ def build_qcto_learning_matrix_docx(title: str, syllabus_content: dict, organiza
     km_ranges_fixed = {code: (mc, t, s, e) for code, (mc, t, s, e) in km_ranges.items()}
 
     doc = Document()
+
+    _set_default_font(doc, brand_colors.get("font"))
     _build_branded_cover(doc, qualification_title, "Learning Matrix", organization_name, logo_bytes, primary, primary_hex, secondary)
 
     _add_matrix_intro(doc, primary, primary_hex)
 
-    _section_heading(doc, "Knowledge Module Topics", primary, primary_hex, size=16)
-    table = doc.add_table(rows=1, cols=5)
-    table.style = "Table Grid"
-    hdr = table.rows[0].cells
-    hdr[0].text, hdr[1].text, hdr[2].text, hdr[3].text, hdr[4].text = "Module", "Topic Code", "Title", "Learner Guide Document", "Page Range"
-    for c in hdr:
-        c.paragraphs[0].runs[0].bold = True
-    for topic_code, (module_code, title_text, start, end) in km_ranges_fixed.items():
-        row = table.add_row().cells
-        row[0].text = module_code
-        row[1].text = topic_code
-        row[2].text = title_text
-        row[3].text = "KM Learner Guide"
-        row[4].text = f"{start}-{end}" if start != end else str(start)
+    # --- Summary table ---
+    _section_heading(doc, "Knowledge Module Summary", primary, primary_hex, size=16)
+    summary_table = doc.add_table(rows=1, cols=7)
+    summary_table.style = "Table Grid"
+    for i, h in enumerate(["Module", "Code", "NQF", "Credits", "Topics", "Elements", "Criteria"]):
+        summary_table.rows[0].cells[i].text = h
+        summary_table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+    for module in km_modules:
+        topics = module.get("topics", [])
+        n_elements = sum(len(t.get("elements", [])) for t in topics)
+        n_criteria = sum(len(t.get("assessment_criteria", [])) for t in topics)
+        row = summary_table.add_row().cells
+        row[0].text = module.get("title", "")
+        row[1].text = module.get("module_code", "")
+        row[2].text = str(module.get("nqf_level", ""))
+        row[3].text = str(module.get("credits", ""))
+        row[4].text = str(len(topics))
+        row[5].text = str(n_elements)
+        row[6].text = str(n_criteria)
     doc.add_page_break()
+
+    # --- Part 1: Topic elements — where each is taught ---
+    _section_heading(doc, "Part 1 · Topic Elements — Where Each Is Taught", primary, primary_hex, size=16)
+    part1_table = doc.add_table(rows=1, cols=4)
+    part1_table.style = "Table Grid"
+    for i, h in enumerate(["Topic", "Element", "Content Required by the Curriculum", "Learner Guide"]):
+        part1_table.rows[0].cells[i].text = h
+        part1_table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+    for module in km_modules:
+        for topic in module.get("topics", []):
+            topic_code = topic.get("topic_code", "")
+            page_info = km_ranges_fixed.get(topic_code)
+            page_str = f"p. {page_info[2]}-{page_info[3]}" if page_info and page_info[2] != page_info[3] else (f"p. {page_info[2]}" if page_info else "p. TBD")
+            for element in topic.get("elements", []):
+                row = part1_table.add_row().cells
+                row[0].text = topic_code
+                row[1].text = element.get("code") or ""
+                row[2].text = element.get("text", "")
+                row[3].text = page_str
+    doc.add_page_break()
+
+    # --- Part 2: Internal assessment criteria — where each is assessed ---
+    _section_heading(doc, "Part 2 · Internal Assessment Criteria — Where Each Is Assessed", primary, primary_hex, size=16)
+    part2_table = doc.add_table(rows=1, cols=4)
+    part2_table.style = "Table Grid"
+    for i, h in enumerate(["Topic", "Code", "Internal Assessment Criterion", "Taught In"]):
+        part2_table.rows[0].cells[i].text = h
+        part2_table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+    for module in km_modules:
+        for topic in module.get("topics", []):
+            topic_code = topic.get("topic_code", "")
+            page_info = km_ranges_fixed.get(topic_code)
+            page_str = f"p. {page_info[2]}-{page_info[3]}" if page_info and page_info[2] != page_info[3] else (f"p. {page_info[2]}" if page_info else "p. TBD")
+            topic_suffix = topic_code.split("-")[-1].replace("KT", "") if topic_code else ""
+            for i, criterion in enumerate(topic.get("assessment_criteria", []), start=1):
+                row = part2_table.add_row().cells
+                row[0].text = topic_code
+                row[1].text = f"IAC{topic_suffix}{i:02d}"
+                row[2].text = criterion
+                row[3].text = page_str
+    doc.add_page_break()
+
+    if pm_modules:
+        _section_heading(doc, "Practical Module Summary", primary, primary_hex, size=16)
+        pm_summary = doc.add_table(rows=1, cols=5)
+        pm_summary.style = "Table Grid"
+        for i, h in enumerate(["Module", "Code", "Performance Assessment Items", "Applied Knowledge Items", "Assessment Criteria"]):
+            pm_summary.rows[0].cells[i].text = h
+            pm_summary.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+        for module in pm_modules:
+            row = pm_summary.add_row().cells
+            row[0].text = module.get("title", "")
+            row[1].text = module.get("module_code", "")
+            row[2].text = str(len(module.get("performance_assessment", [])))
+            row[3].text = str(len(module.get("applied_knowledge", [])))
+            row[4].text = str(len(module.get("assessment_criteria", [])))
+        doc.add_page_break()
 
     _add_matrix_table(doc, "Practical Module Units", "PM Learner Guide", pm_ranges, primary, primary_hex, label_col="Unit")
     _add_matrix_table(doc, "Workplace Module Units", "WM Guide", wm_ranges, primary, primary_hex, label_col="Unit")

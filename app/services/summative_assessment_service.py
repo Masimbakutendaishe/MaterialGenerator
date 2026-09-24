@@ -5,7 +5,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_summative_assessment_content
-from app.services.document_service import _hex_to_rgb, _add_branded_header_footer, DEFAULT_PRIMARY
+from app.services.document_service import _hex_to_rgb, _add_branded_header_footer, DEFAULT_PRIMARY, _set_default_font
 
 
 def build_summative_assessment_docx(title: str, units: list, organization_name: str = None,
@@ -18,6 +18,7 @@ def build_summative_assessment_docx(title: str, units: list, organization_name: 
     content = generate_summative_assessment_content(title, units, seta=seta, nqf_level=nqf_level, job_id=job_id)
 
     doc = Document()
+    _set_default_font(doc, brand_colors.get("font"))
 
     from app.services.document_service import _build_branded_cover
     _build_branded_cover(doc, title, "Summative Assessment", organization_name, logo_bytes, primary, primary_hex, primary)
