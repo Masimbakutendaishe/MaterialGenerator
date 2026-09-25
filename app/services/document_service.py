@@ -305,6 +305,9 @@ def _set_default_font(doc: Document, font_name: str = "Calibri"):
     style = doc.styles["Normal"]
     style.font.name = font_name or "Calibri"
     style.font.size = Pt(11)
+    style.paragraph_format.line_spacing = 1.0
+    style.paragraph_format.space_before = Pt(0)
+    style.paragraph_format.space_after = Pt(0)
     # East Asian font element must also be set, or Word silently falls back to Calibri
     # for the "Normal" style's complex-script/east-asian font in some Word versions.
     rpr = style.element.get_or_add_rPr()
@@ -556,6 +559,11 @@ def _add_page_numbers(doc: Document):
 
         def _add_field(paragraph, field_code):
             run_el = OxmlElement("w:r")
+            rPr = OxmlElement("w:rPr")
+            sz = OxmlElement("w:sz")
+            sz.set(_qn("w:val"), "18")
+            rPr.append(sz)
+            run_el.append(rPr)
             fld_begin = OxmlElement("w:fldChar")
             fld_begin.set(_qn("w:fldCharType"), "begin")
             instr = OxmlElement("w:instrText")
@@ -779,6 +787,11 @@ def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualific
 
     def _add_field(paragraph, field_code):
         run_el = OxmlElement("w:r")
+        rPr = OxmlElement("w:rPr")
+        sz = OxmlElement("w:sz")
+        sz.set(_qn("w:val"), "18")
+        rPr.append(sz)
+        run_el.append(rPr)
         fld_begin = OxmlElement("w:fldChar")
         fld_begin.set(_qn("w:fldCharType"), "begin")
         instr = OxmlElement("w:instrText")

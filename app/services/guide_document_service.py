@@ -1,4 +1,4 @@
-"""Generalized builder for SETA guide-style documents (Facilitator Guide, Assessment Guide,
+﻿"""Generalized builder for SETA guide-style documents (Facilitator Guide, Assessment Guide,
 Moderator Guide, PoE Guide, etc). Shares content-block rendering with document_service.py."""
 from io import BytesIO
 from docx import Document
@@ -25,6 +25,7 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", "F39C12").lstrip("#") if brand_colors.get("accent") else "F39C12"
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
 
@@ -65,7 +66,7 @@ def build_guide_docx(title: str, units: list, organization_name: str = None,
                 sec_run.font.color.rgb = secondary
 
             for block in section.get("blocks", []):
-                _render_content_block(doc, block, primary_hex, secondary)
+                _render_content_block(doc, block, primary_hex, secondary, accent_hex=accent_hex)
 
         key_points = content.get("key_points", [])
         if key_points:

@@ -71,7 +71,7 @@ def generate_textbook_task(job_id: str):
 
         buffer = build_textbook_docx(
             title=syllabus.title,
-            units=units,
+            units=(syllabus.content if subtype == "qcto_isa" else units),
             organization_name=organization.name if organization else None,
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),
@@ -164,7 +164,7 @@ def generate_presentation_task(job_id: str):
 
         buffer = build_presentation_pptx(
             title=syllabus.title,
-            units=units,
+            units=(syllabus.content if subtype == "qcto_isa" else units),
             organization_name=organization.name if organization else None,
             brand_colors=organization.brand_colors if organization else None,
             seta=accreditation.get("seta"),
@@ -478,7 +478,7 @@ def generate_package_document_task(job_id: str):
         # same job will find every already-succeeded item instantly (no re-generation)
         # and only need to re-attempt the one(s) that failed, rather than starting over
         # from scratch.
-        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_km_assessment", "qcto_km_facilitator_guide"):
+        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_km_assessment", "qcto_km_facilitator_guide", "qcto_km_assessment_memo"):
             for module in units:
                 if module.get("module_type") == "KM":
                     try:
@@ -516,7 +516,7 @@ def generate_package_document_task(job_id: str):
                                 print(f"[RESUME] {topic.get('topic_code', '')} KM POE questions failed, will retry later: {topic_exc}")
                                 continue
 
-        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_knowledge_modules", "qcto_learning_matrix"):
+        if syllabus.syllabus_type == "qcto" and subtype in ("qcto_knowledge_modules", "qcto_learning_matrix", "qcto_reference_documents"):
             for module in units:
                 if module.get("module_type") == "KM":
                     try:
@@ -567,7 +567,7 @@ def generate_package_document_task(job_id: str):
         # both builders accept these kwargs, so a single call shape works for textbook/assessment/presentation
         buffer = builder_fn(
             title=syllabus.title,
-            units=units,
+            units=(syllabus.content if subtype == "qcto_isa" else units),
             organization_name=organization.name if organization else None,
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),
@@ -605,3 +605,5 @@ def generate_package_document_task(job_id: str):
         job.status = "failed"
         job.error_message = str(exc)
         db.session.commit()
+
+
