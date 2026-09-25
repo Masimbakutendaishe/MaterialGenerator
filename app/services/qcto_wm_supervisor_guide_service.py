@@ -117,13 +117,13 @@ def _add_sup_module_section(doc, module, module_index, primary, primary_hex, sec
 
     doc.add_paragraph()
     doc.add_paragraph("A practical way to structure this:").runs[0].bold = True
-    for step in [
+    for step_i, step in enumerate([
         "Let the learner observe you or an experienced colleague handling this, once or twice.",
         "Have the learner attempt it themselves while you're available to guide and correct.",
         "Once they're consistently getting it right, let them handle it with normal light supervision.",
         "Note in the WM Logbook's Scope of Work Experience table when you're satisfied they can do this reliably.",
-    ]:
-        doc.add_paragraph(step, style="List Number")
+    ], start=1):
+        doc.add_paragraph(f"{step_i}. {step}")
     doc.add_page_break()
 
 

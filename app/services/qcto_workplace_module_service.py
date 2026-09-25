@@ -233,8 +233,8 @@ def build_qcto_workplace_module_docx(title: str, syllabus_content: dict, organiz
                     process_label = doc.add_paragraph()
                     process_label.add_run("Step-by-Step Process").bold = True
                     process_label.runs[0].font.size = Pt(10)
-                    for step in activity["process_steps"]:
-                        doc.add_paragraph(step, style="List Number")
+                    for step_i, step in enumerate(activity["process_steps"], start=1):
+                        doc.add_paragraph(f"{step_i}. {step}")
 
                 if activity.get("practical_example"):
                     ex_p = doc.add_paragraph()

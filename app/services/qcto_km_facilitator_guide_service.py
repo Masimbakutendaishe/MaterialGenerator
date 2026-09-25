@@ -221,7 +221,7 @@ def _add_km_fg_preparation(doc, primary, primary_hex):
 
     doc.add_paragraph()
     doc.add_paragraph("Workshop Resource Requirements:").runs[0].bold = True
-    for item in [
+    for item_i, item in enumerate([
         "Trainer's File (to be returned after training)",
         "Course Admin File (to be completed and returned after training)",
         "Data projector",
@@ -231,8 +231,8 @@ def _add_km_fg_preparation(doc, primary, primary_hex):
         "Formative Assessment Guide per learner",
         "POE Guide per learner",
         "Assessment Guide per candidate",
-    ]:
-        doc.add_paragraph(item, style="List Number")
+    ], start=1):
+        doc.add_paragraph(f"{item_i}. {item}")
     doc.add_page_break()
 
 

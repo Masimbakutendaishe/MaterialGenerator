@@ -648,8 +648,8 @@ def build_qcto_workplace_logbook_docx(title: str, syllabus_content: dict, organi
         "Reflect on what you learnt and note any questions for your supervisor or facilitator.",
         "Obtain signatures from yourself, your supervisor, and your facilitator for each entry.",
     ]
-    for item in instructions:
-        doc.add_paragraph(item, style="List Number")
+    for item_i, item in enumerate(instructions, start=1):
+        doc.add_paragraph(f"{item_i}. {item}")
 
     doc.add_page_break()
 

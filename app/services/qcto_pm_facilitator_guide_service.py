@@ -197,8 +197,8 @@ def _add_pm_fg_preparation(doc, primary, primary_hex):
 
     doc.add_paragraph()
     doc.add_paragraph("Workshop Resource Requirements:").runs[0].bold = True
-    for item in [
-        "Trainer's File (to be returned after training)",
+    for item_i, item in enumerate([
+"Trainer's File (to be returned after training)",
         "Course Admin File (to be completed and returned after training)",
         "Practical equipment, tools, and materials matching each skill being taught",
         "Sufficient stock/consumables for each learner to practise independently, not just observe",
@@ -208,8 +208,8 @@ def _add_pm_fg_preparation(doc, primary, primary_hex):
         "Formative Assessment Guide per learner",
         "POE Guide per learner",
         "Assessment Guide per candidate",
-    ]:
-        doc.add_paragraph(item, style="List Number")
+    ], start=1):
+        doc.add_paragraph(f"{item_i}. {item}")
     doc.add_page_break()
 
 
@@ -326,7 +326,7 @@ def _add_pm_fg_facilitation_plan(doc, module, day_number, primary, primary_hex, 
 
                 doc.add_paragraph("How to Demonstrate:").runs[0].bold = True
                 for i, step in enumerate(item.get("demonstration_steps", []), start=1):
-                    doc.add_paragraph(f"{i}. {step}", style="List Number")
+                    doc.add_paragraph(f"{i}. {step}")
 
                 doc.add_paragraph("Coach For (during Guided Practice):").runs[0].bold = True
                 for tip in item.get("coaching_tips", []):

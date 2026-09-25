@@ -262,9 +262,12 @@ def _render_content_block(doc, block, primary_hex, secondary, accent_hex=None):
     elif block_type == "list":
         items = block.get("items", [])
         ordered = block.get("ordered", False)
-        style = "List Number" if ordered else "List Bullet"
-        for item in items:
-            doc.add_paragraph(item, style=style)
+        if ordered:
+            for item_i, item in enumerate(items, start=1):
+                doc.add_paragraph(f"{item_i}. {item}")
+        else:
+            for item in items:
+                doc.add_paragraph(item, style="List Bullet")
         doc.add_paragraph().paragraph_format.space_after = Pt(4)
 
     else:  # paragraph

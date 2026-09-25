@@ -79,7 +79,7 @@ def _add_poe_process(doc, primary, primary_hex):
         "Provide feedback on the assessment",
         "Review and report on the assessment",
     ], start=1):
-        doc.add_paragraph(f"Step {i}: {step}", style="List Number")
+        doc.add_paragraph(f"Step {i}: {step}")
     doc.add_page_break()
 
 

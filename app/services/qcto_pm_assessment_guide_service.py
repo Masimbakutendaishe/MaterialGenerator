@@ -73,7 +73,7 @@ def _add_pag_process_and_steps(doc, primary, primary_hex, secondary):
         "Provide feedback on the assessment",
         "Review and report on the assessment",
     ], start=1):
-        doc.add_paragraph(f"Step {i}: {step}", style="List Number")
+        doc.add_paragraph(f"Step {i}: {step}")
     doc.add_page_break()
 
     _section_heading(doc, "Assessment Steps", primary, primary_hex)
