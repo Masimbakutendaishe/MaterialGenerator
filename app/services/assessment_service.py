@@ -3,8 +3,7 @@ from io import BytesIO
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from app.services.ai_service import generate_assessment_questions
-from app.services.document_service import _add_branded_header_footer, _set_default_font
+from app.services.document_service import _add_branded_header_footer, _set_default_font, DEFAULT_ACCENT, _add_ruled_line
 
 DEFAULT_PRIMARY = "1A5276"
 
@@ -21,13 +20,14 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
                            brand_colors: dict = None, job_id: str = None, doc_label: str = "Assessment", **kwargs) -> BytesIO:
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
 
     doc = Document()
     _set_default_font(doc, brand_colors.get("font"))
 
     from app.services.document_service import _build_branded_cover
-    _build_branded_cover(doc, title, doc_label, organization_name, logo_bytes, primary, primary_hex, RGBColor(0x28, 0x74, 0xA6))
+    _build_branded_cover(doc, title, doc_label, organization_name, logo_bytes, primary, primary_hex, RGBColor(0x28, 0x74, 0xA6), accent_hex=accent_hex)
 
     # Candidate details table with real borders
 
@@ -76,8 +76,7 @@ def build_assessment_docx(title: str, units: list, organization_name: str = None
             else:
                 blank_lines = max(q.get("blank_lines", 2), min(round(q.get("marks", 0) * 0.8), 8))
                 for _ in range(blank_lines):
-                    line_para = doc.add_paragraph()
-                    line_para.add_run("_" * 80)
+                    _add_ruled_line(doc, primary_hex)
 
             question_number += 1
 

@@ -11,7 +11,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import generate_model_answers_for_questions
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
 )
 
 
@@ -24,6 +24,7 @@ def build_qcto_pm_assessment_memo_docx(title: str, syllabus_content: dict, organ
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
 
@@ -32,7 +33,7 @@ def build_qcto_pm_assessment_memo_docx(title: str, syllabus_content: dict, organ
 
     doc = Document()
     _set_default_font(doc, brand_colors.get("font"))
-    _build_branded_cover(doc, qualification_title, "PM Assessment Memorandum", organization_name, logo_bytes, primary, primary_hex, secondary)
+    _build_branded_cover(doc, qualification_title, "PM Assessment Memorandum", organization_name, logo_bytes, primary, primary_hex, secondary, accent_hex=accent_hex)
 
     note = doc.add_paragraph()
     note_run = note.add_run(

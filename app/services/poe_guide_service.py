@@ -5,7 +5,8 @@ from docx import Document
 from docx.shared import Pt, Inches
 from app.services.ai_service import _call_model, _repair_json_string
 from app.services.document_service import (
-    _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer, DEFAULT_PRIMARY, _set_default_font,
+    _hex_to_rgb, _build_branded_cover, _add_signature_block, _add_branded_header_footer, DEFAULT_PRIMARY, DEFAULT_ACCENT, _set_default_font,
+    _add_ruled_line,
 )
 import json
 
@@ -52,12 +53,13 @@ def build_poe_guide_docx(title: str, units: list, organization_name: str = None,
                           brand_colors: dict = None, job_id: str = None) -> BytesIO:
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
 
     doc = Document()
 
     _set_default_font(doc, brand_colors.get("font"))
-    _build_branded_cover(doc, title, "Portfolio of Evidence", organization_name, logo_bytes, primary, primary_hex, primary)
+    _build_branded_cover(doc, title, "Portfolio of Evidence", organization_name, logo_bytes, primary, primary_hex, primary, accent_hex=accent_hex)
 
     intro = doc.add_paragraph()
     intro.add_run(
@@ -87,9 +89,7 @@ def build_poe_guide_docx(title: str, units: list, organization_name: str = None,
 
             blank_lines = max(item.get("blank_lines", 3), min(round(item.get("marks", 0) * 0.8), 8))
             for _ in range(blank_lines):
-                line_para = doc.add_paragraph()
-                line_para.paragraph_format.space_after = Pt(12)
-                line_para.add_run("_" * 100)
+                _add_ruled_line(doc, primary_hex)
 
             evidence_heading = doc.add_paragraph()
             evidence_run = evidence_heading.add_run("Evidence to attach:")

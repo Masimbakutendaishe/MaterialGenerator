@@ -45,6 +45,10 @@ def generate_textbook_task(job_id: str):
     job = GenerationJob.query.get(job_id)
     if not job:
         return
+    if job.status == "cancelled":
+        # Already cancelled while it sat queued -- don't resurrect it into "running"
+        # just because Celery's solo-pool worker finally got around to it.
+        return
 
     job.status = "running"
     from datetime import datetime, timezone
@@ -55,9 +59,9 @@ def generate_textbook_task(job_id: str):
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
         if syllabus.syllabus_type == "qcto":
-            units = syllabus.content.get("modules", [])
+            units = syllabus.content.get("modules") or []
         else:
-            units = syllabus.content.get("units", [])
+            units = syllabus.content.get("units") or []
         accreditation = dict(syllabus.accreditation_info or {})
         if organization:
             accreditation.setdefault("organization_address", organization.address)
@@ -71,7 +75,7 @@ def generate_textbook_task(job_id: str):
 
         buffer = build_textbook_docx(
             title=syllabus.title,
-            units=(syllabus.content if subtype == "qcto_isa" else units),
+            units=(syllabus.content if subtype in ("qcto_isa", "qcto_final_exam") else units),
             organization_name=organization.name if organization else None,
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),
@@ -138,6 +142,10 @@ def generate_presentation_task(job_id: str):
     job = GenerationJob.query.get(job_id)
     if not job:
         return
+    if job.status == "cancelled":
+        # Already cancelled while it sat queued -- don't resurrect it into "running"
+        # just because Celery's solo-pool worker finally got around to it.
+        return
 
     job.status = "running"
     from datetime import datetime, timezone
@@ -148,9 +156,9 @@ def generate_presentation_task(job_id: str):
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
         if syllabus.syllabus_type == "qcto":
-            units = syllabus.content.get("modules", [])
+            units = syllabus.content.get("modules") or []
         else:
-            units = syllabus.content.get("units", [])
+            units = syllabus.content.get("units") or []
         accreditation = dict(syllabus.accreditation_info or {})
         if organization:
             accreditation.setdefault("organization_address", organization.address)
@@ -164,7 +172,7 @@ def generate_presentation_task(job_id: str):
 
         buffer = build_presentation_pptx(
             title=syllabus.title,
-            units=(syllabus.content if subtype == "qcto_isa" else units),
+            units=(syllabus.content if subtype in ("qcto_isa", "qcto_final_exam") else units),
             organization_name=organization.name if organization else None,
             brand_colors=organization.brand_colors if organization else None,
             seta=accreditation.get("seta"),
@@ -413,7 +421,7 @@ def _get_or_generate_textbook_chapter(syllabus, unit, title, seta=None, nqf_leve
     content = write_chapter_content(unit.get("name", ""), unit.get("outcomes", []), course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
     unit["generated_chapter_content"] = content
 
-    units = syllabus.content.get("units", [])
+    units = syllabus.content.get("units") or []
     syllabus.content = {**syllabus.content, "units": units}
     db.session.commit()
     return content
@@ -430,7 +438,7 @@ def _get_or_generate_presentation_slides(syllabus, unit, title, seta=None, nqf_l
     content = generate_slide_content(unit.get("name", ""), unit.get("outcomes", []), course_title=title, seta=seta, nqf_level=nqf_level, job_id=job_id)
     unit["generated_slide_content"] = content
 
-    units = syllabus.content.get("units", [])
+    units = syllabus.content.get("units") or []
     syllabus.content = {**syllabus.content, "units": units}
     db.session.commit()
     return content
@@ -442,6 +450,10 @@ def generate_package_document_task(job_id: str):
     functions above — new document types just need an entry in DOCUMENT_BUILDERS."""
     job = GenerationJob.query.get(job_id)
     if not job:
+        return
+    if job.status == "cancelled":
+        # Already cancelled while it sat queued -- don't resurrect it into "running"
+        # just because Celery's solo-pool worker finally got around to it.
         return
 
     job.status = "running"
@@ -459,9 +471,9 @@ def generate_package_document_task(job_id: str):
         syllabus = Syllabus.query.get(job.syllabus_id)
         organization = Organization.query.get(job.organization_id)
         if syllabus.syllabus_type == "qcto":
-            units = syllabus.content.get("modules", [])
+            units = syllabus.content.get("modules") or []
         else:
-            units = syllabus.content.get("units", [])
+            units = syllabus.content.get("units") or []
         accreditation = dict(syllabus.accreditation_info or {})
         if organization:
             accreditation.setdefault("organization_address", organization.address)
@@ -567,7 +579,7 @@ def generate_package_document_task(job_id: str):
         # both builders accept these kwargs, so a single call shape works for textbook/assessment/presentation
         buffer = builder_fn(
             title=syllabus.title,
-            units=(syllabus.content if subtype == "qcto_isa" else units),
+            units=(syllabus.content if subtype in ("qcto_isa", "qcto_final_exam") else units),
             organization_name=organization.name if organization else None,
             seta=accreditation.get("seta"),
             nqf_level=accreditation.get("nqf_level"),

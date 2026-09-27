@@ -19,7 +19,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import reason_isa_traceability, generate_km_exam_objective_questions
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
 )
 
 from app.services.qcto_isa_service import (
@@ -56,6 +56,7 @@ def build_qcto_fisa_docx(title: str, syllabus_content: dict, organization_name: 
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
     qualification_title = syllabus_content.get("qualification_title", "") or title
@@ -89,6 +90,7 @@ def build_qcto_fisa_docx(title: str, syllabus_content: dict, organization_name: 
     _build_branded_cover(
         doc, qualification_title, "FISA — Final Integrated Summative Assessment",
         organization_name, logo_bytes, primary, primary_hex, secondary,
+        accent_hex=accent_hex,
     )
 
     # --- ISA-format traceability half ---

@@ -13,12 +13,18 @@ def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: 
     No AI call — pure matplotlib rendering."""
     primary = f"#{primary_hex.lstrip('#')}"
     accent = f"#{accent_hex.lstrip('#')}"
-
     def _wrap_text(text, max_chars_per_line=22):
-        """Wraps long labels onto multiple lines instead of letting them overflow the box."""
+        """Wraps long labels onto multiple lines, splitting any single word
+        that alone exceeds the line budget so it can't overflow the box."""
         words = text.split()
         lines, current = [], ""
         for word in words:
+            while len(word) > max_chars_per_line:
+                if current:
+                    lines.append(current)
+                    current = ""
+                lines.append(word[:max_chars_per_line - 1] + "-")
+                word = word[max_chars_per_line - 1:]
             if len(current) + len(word) + 1 <= max_chars_per_line:
                 current = f"{current} {word}".strip()
             else:
@@ -39,7 +45,11 @@ def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: 
             return "diamond"
         return "rect"
 
-    wrapped_steps = [_wrap_text(s) for s in steps]
+    wrapped_steps = []
+    for i, s in enumerate(steps):
+        shape = _shape_for_step(i, len(steps), s)
+        wrap_width = 16 if shape == "diamond" else 22
+        wrapped_steps.append(_wrap_text(s, wrap_width))
     line_counts = [w.count("\n") + 1 for w in wrapped_steps]
 
     box_height_base = 0.55
@@ -91,7 +101,6 @@ def generate_flow_diagram(steps: list, primary_hex: str = "1A5276", accent_hex: 
         ax.text(cx, cy, label, ha="center", va="center", color="white", fontsize=max(6, 9 * scale), fontweight="bold")
 
         if i < len(steps) - 1:
-            next_height = box_heights[i + 1]
             arrow_y_start = y_pos
             arrow_y_end = y_pos - gap
             ax.annotate("", xy=(cx, arrow_y_end), xytext=(cx, arrow_y_start),

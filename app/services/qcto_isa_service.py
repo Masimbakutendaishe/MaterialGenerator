@@ -16,7 +16,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.ai_service import reason_isa_traceability, reason_elo_cluster_mapping
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    _element_text, _element_code, DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
+    _element_text, _element_code, DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
 )
 
 
@@ -76,8 +76,27 @@ def _build_clusters(km_modules, link_lookup):
     return clusters
 
 
+def _add_rollout_table(doc, rows, primary_hex):
+    """Renders a list of (label, value) pairs as a two-column Table Grid, bold labels
+    in the left column -- shared by the cluster and ELO guidance sections below so the
+    whole Rollout Plan reads as structured reference tables rather than loose prose."""
+    table = doc.add_table(rows=len(rows), cols=2)
+    table.style = "Table Grid"
+    table.autofit = True
+    table.columns[0].width = Inches(2.2)
+    for i, (label, value) in enumerate(rows):
+        label_cell = table.cell(i, 0)
+        label_cell.width = Inches(2.2)
+        label_cell.text = label
+        label_cell.paragraphs[0].runs[0].bold = True
+        table.cell(i, 1).text = value
+    doc.add_paragraph()
+    return table
+
+
 def _add_rollout_clusters(doc, clusters, pm_modules, wm_modules, primary, primary_hex, secondary):
-    """Renders each cluster as a section: the KM module, and its linked PM/WM modules."""
+    """Renders each cluster as a heading plus a label/value table: the KM module, and its
+    linked PM/WM modules."""
     pm_by_code = {m.get("module_code", ""): m for m in pm_modules}
     wm_by_code = {m.get("module_code", ""): m for m in wm_modules}
 
@@ -90,26 +109,20 @@ def _add_rollout_clusters(doc, clusters, pm_modules, wm_modules, primary, primar
         h_run.font.color.rgb = primary
         _add_bottom_border(heading, primary_hex)
 
-        km_p = doc.add_paragraph()
-        km_p.add_run(f"Knowledge Module: {km_module.get('module_code', '')} — {km_module.get('title', '')}").bold = True
+        rows = [("Knowledge Module", f"{km_module.get('module_code', '')} -- {km_module.get('title', '')}")]
 
         if cluster["pm_codes"]:
-            pm_p = doc.add_paragraph()
-            pm_p.add_run("Linked Practical Module(s): ").bold = True
             pm_titles = [f"{code} ({pm_by_code.get(code, {}).get('title', '')})" for code in cluster["pm_codes"]]
-            pm_p.add_run(", ".join(pm_titles))
+            rows.append(("Linked Practical Module(s)", ", ".join(pm_titles)))
 
         if cluster["wm_codes"]:
-            wm_p = doc.add_paragraph()
-            wm_p.add_run("Linked Workplace Module(s): ").bold = True
             wm_titles = [f"{code} ({wm_by_code.get(code, {}).get('title', '')})" for code in cluster["wm_codes"]]
-            wm_p.add_run(", ".join(wm_titles))
+            rows.append(("Linked Workplace Module(s)", ", ".join(wm_titles)))
 
         if not cluster["pm_codes"] and not cluster["wm_codes"]:
-            note_p = doc.add_paragraph()
-            note_p.add_run("No PM or WM module was found to be genuinely linked to this Knowledge Module.").italic = True
+            rows.append(("Linked Module(s)", "No PM or WM module was found to be genuinely linked to this Knowledge Module."))
 
-        doc.add_paragraph()
+        _add_rollout_table(doc, rows, primary_hex)
 
 def _add_rollout_elo_guidance(doc, exit_level_outcomes, clusters, elo_cluster_mapping, primary, primary_hex, secondary):
     """Walks through each Exit Level Outcome in order, showing the related cluster(s) and
@@ -143,7 +156,7 @@ def _add_rollout_elo_guidance(doc, exit_level_outcomes, clusters, elo_cluster_ma
     for isa_number, elo in enumerate(exit_level_outcomes, start=1):
         elo_code = elo.get("code", "")
         elo_heading = doc.add_paragraph()
-        eh_run = elo_heading.add_run(f"{elo_code}" + (f" — {elo.get('title')}" if elo.get("title") else ""))
+        eh_run = elo_heading.add_run(f"{elo_code}" + (f" -- {elo.get('title')}" if elo.get("title") else ""))
         eh_run.bold = True
         eh_run.font.size = Pt(14)
         eh_run.font.color.rgb = secondary
@@ -151,25 +164,24 @@ def _add_rollout_elo_guidance(doc, exit_level_outcomes, clusters, elo_cluster_ma
         for outcome in elo.get("outcomes", []):
             doc.add_paragraph(outcome, style="List Bullet")
 
+        doc.add_paragraph()
+
         linked_cluster_numbers = elo_cluster_mapping.get(elo_code, [])
         linked_clusters = [c for c in clusters if c["cluster_number"] in linked_cluster_numbers]
         if linked_clusters:
-            cluster_p = doc.add_paragraph()
-            cluster_p.add_run("Related cluster(s): ").bold = True
             names = [f"Cluster {c['cluster_number']} ({c['km_module'].get('title', '')})" for c in linked_clusters]
-            cluster_p.add_run(", ".join(names))
+            related_value = ", ".join(names)
         else:
-            note_p = doc.add_paragraph()
-            note_p.add_run("No cluster was found to be genuinely linked to this Exit Level Outcome.").italic = True
+            related_value = "No cluster was found to be genuinely linked to this Exit Level Outcome."
 
-        isa_p = doc.add_paragraph()
-        isa_p.add_run(f"After the cluster(s) above are taught, learners write ISA {isa_number}, which addresses this Exit Level Outcome.").italic = True
-        doc.add_paragraph()
+        isa_value = f"After the related cluster(s) above are taught, learners write ISA {isa_number}, which addresses this Exit Level Outcome."
 
+        rows = [("Related Cluster(s)", related_value), ("Assessment", isa_value)]
+        _add_rollout_table(doc, rows, primary_hex)
 
 def _add_isa_learner_details(doc, primary, primary_hex):
     """Learner and exam-session details, filled in by whoever administers the final exam
-    this ISA specifies — placed up front so it's the first thing completed."""
+    this ISA specifies -- placed up front so it's the first thing completed."""
     heading = doc.add_paragraph()
     h_run = heading.add_run("Learner and Exam Details")
     h_run.bold = True
@@ -185,7 +197,6 @@ def _add_isa_learner_details(doc, primary, primary_hex):
         table.cell(i, 0).text = field
         table.cell(i, 0).paragraphs[0].runs[0].bold = True
     doc.add_page_break()
-
 
 def _add_isa_final_signoff(doc, primary, primary_hex):
     """Overall result and sign-off, closing out the learner's exam record against this
@@ -421,6 +432,7 @@ def build_qcto_isa_docx(title: str, syllabus_content: dict, organization_name: s
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
     qualification_title = syllabus_content.get("qualification_title", "") or title
@@ -450,7 +462,7 @@ def build_qcto_isa_docx(title: str, syllabus_content: dict, organization_name: s
     doc = Document()
 
     _set_default_font(doc, brand_colors.get("font"))
-    _build_branded_cover(doc, qualification_title, "Rollout Plan", organization_name, logo_bytes, primary, primary_hex, secondary)
+    _build_branded_cover(doc, qualification_title, "Rollout Plan", organization_name, logo_bytes, primary, primary_hex, secondary, accent_hex=accent_hex)
 
     _add_isa_learner_details(doc, primary, primary_hex)
     _add_isa_intro(doc, primary, primary_hex, ai_reasoning_used)

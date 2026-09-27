@@ -56,6 +56,48 @@ def _add_footer_lines(slide, prs, module_line, contact_line, page_number, primar
     p.runs[0].font.color.rgb = primary
 
 
+def _add_slide_border(slide, prs, primary, accent, inset_inches=0.12, inner_gap_inches=0.07,
+                       outer_weight_pt=3.0, inner_weight_pt=1.25):
+    """Two-line decorative frame -- a thicker accent-colored outer line and a thinner
+    primary-colored inner line -- plus a small chevron accent in the top-right corner,
+    so the deck reads as designed rather than a bare white background. Outline shapes
+    only, no fill, so they never cover title/body/footer content."""
+    outer = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(inset_inches), Inches(inset_inches),
+        prs.slide_width - Inches(inset_inches * 2),
+        prs.slide_height - Inches(inset_inches * 2),
+    )
+    outer.fill.background()
+    outer.line.color.rgb = accent
+    outer.line.width = Pt(outer_weight_pt)
+    outer.shadow.inherit = False
+
+    inner_inset = inset_inches + inner_gap_inches
+    inner = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        Inches(inner_inset), Inches(inner_inset),
+        prs.slide_width - Inches(inner_inset * 2),
+        prs.slide_height - Inches(inner_inset * 2),
+    )
+    inner.fill.background()
+    inner.line.color.rgb = primary
+    inner.line.width = Pt(inner_weight_pt)
+    inner.shadow.inherit = False
+
+    arrow = slide.shapes.add_shape(
+        MSO_SHAPE.CHEVRON,
+        prs.slide_width - Inches(0.75), Inches(0.18),
+        Inches(0.5), Inches(0.3),
+    )
+    arrow.fill.solid()
+    arrow.fill.fore_color.rgb = accent
+    arrow.line.fill.background()
+    arrow.shadow.inherit = False
+
+    return outer, inner, arrow
+
+
 def _add_eyebrow(slide, prs, text, color):
     """Small, bold label above a slide's main title."""
     box = slide.shapes.add_textbox(Inches(0.5), Inches(0.35), prs.slide_width - Inches(1.0), Inches(0.4))
@@ -85,6 +127,7 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
                            accreditation_info=None, job_id=None):
     primary = _pptx_rgb(brand_colors.get("primary"), DEFAULT_PRIMARY)
     secondary = _pptx_rgb(brand_colors.get("secondary"), DEFAULT_SECONDARY)
+    accent = _pptx_rgb(brand_colors.get("accent"), DEFAULT_ACCENT)
     accreditation_info = accreditation_info or {}
 
     module_line_parts = [module.get("module_code", ""), module.get("title", "")]
@@ -105,6 +148,7 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
     _add_footer_lines(slide, prs, module_line, contact_line, page_number, primary)
+    _add_slide_border(slide, prs, primary, accent)
 
     slide.shapes.title.text = module_title
     title_run = slide.shapes.title.text_frame.paragraphs[0].runs[0]
@@ -133,6 +177,7 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
     page_number += 1
     overview_slide = prs.slides.add_slide(prs.slide_layouts[1])
     _add_footer_lines(overview_slide, prs, module_line, contact_line, page_number, primary)
+    _add_slide_border(overview_slide, prs, primary, accent)
     overview_title = overview_slide.shapes.title
     overview_title.left = Inches(0.5)
     overview_title.top = Inches(0.5)
@@ -170,6 +215,7 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
         page_number += 1
         divider = prs.slides.add_slide(prs.slide_layouts[6])
         _add_footer_lines(divider, prs, module_line, contact_line, page_number, primary)
+        _add_slide_border(divider, prs, primary, accent)
         divider_box = divider.shapes.add_textbox(Inches(0.8), Inches(2.6), prs.slide_width - Inches(1.6), Inches(2.0))
         d_tf = divider_box.text_frame
         d_tf.word_wrap = True
@@ -201,6 +247,7 @@ def _build_pm_module_deck(module, qualification_title, organization_name, brand_
 
             slide = prs.slides.add_slide(bullet_layout)
             _add_footer_lines(slide, prs, module_line, contact_line, page_number, primary)
+            _add_slide_border(slide, prs, primary, accent)
             _add_eyebrow(slide, prs, (f"{pa_code}  " if pa_code else "") + pa_text, secondary)
 
             title_shape = slide.shapes.title

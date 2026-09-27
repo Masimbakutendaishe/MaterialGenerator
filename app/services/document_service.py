@@ -1,4 +1,4 @@
-﻿"""Builds a .docx textbook from structured syllabus content, styled with organization branding."""
+"""Builds a .docx textbook from structured syllabus content, styled with organization branding."""
 from io import BytesIO
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
@@ -48,6 +48,18 @@ def _add_bottom_border(paragraph, color_hex: str, size: str = "18"):
     bottom.set(qn("w:color"), color_hex.lstrip("#").upper())
     p_borders.append(bottom)
     p_pr.append(p_borders)
+
+
+def _add_ruled_line(doc, color_hex: str, size: str = "6"):
+    """Draws one full-width ruled line for handwritten answer space, using a real paragraph
+    border rather than underscore characters. A border always spans exactly the text width
+    regardless of font — underscore glyphs are font/size-dependent, and a fixed character
+    count tuned to fit one font can overflow with another, wrapping the excess onto a short
+    stray line."""
+    p = doc.add_paragraph()
+    p.paragraph_format.space_after = Pt(6)
+    _add_bottom_border(p, color_hex, size=size)
+    return p
 
 def _add_full_border(paragraph, color_hex: str):
     """Adds a border on all four sides of a paragraph — used for scenario call-out boxes."""
@@ -819,10 +831,23 @@ def _add_branded_header_footer(doc: Document, logo_bytes: bytes = None, qualific
 
 
 def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organization_name: str,
-                          logo_bytes: bytes, primary, primary_hex: str, secondary):
-    """Shared branded cover page used by every document type: full page border, centered
-    logo, bold title, colored accent rules, and a shaded organization name band."""
+                          logo_bytes: bytes, primary, primary_hex: str, secondary, accent_hex: str = None):
+    """Shared branded cover page used by every document type: full-width top and bottom
+    accent bands, full page border, centered logo, bold title, colored accent rules, a
+    shaded organization name band, and a learner/facility details table -- designed to
+    use the full page rather than leaving the lower half blank."""
+    accent_hex = accent_hex or primary_hex
     _add_page_border(doc.sections[0], primary_hex)
+
+    top_band = doc.add_paragraph()
+    top_band.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    top_band.paragraph_format.space_before = Pt(0)
+    top_band.paragraph_format.space_after = Pt(0)
+    _shade_paragraph(top_band, accent_hex)
+    top_run = top_band.add_run("A C C R E D I T E D   T R A I N I N G   M A T E R I A L")
+    top_run.bold = True
+    top_run.font.size = Pt(10)
+    top_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
     for _ in range(3):
         doc.add_paragraph()
@@ -835,13 +860,13 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
 
     rule_above = doc.add_paragraph()
     rule_above.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_bottom_border(rule_above, primary_hex, size="10")
+    _add_bottom_border(rule_above, accent_hex, size="10")
 
     title_para = doc.add_paragraph()
     title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_run = title_para.add_run(doc_title)
     title_run.bold = True
-    title_run.font.size = Pt(26)
+    title_run.font.size = Pt(28)
     title_run.font.color.rgb = primary
 
     if doc_subtitle:
@@ -849,12 +874,12 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
         subtitle_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         subtitle_run = subtitle_para.add_run(doc_subtitle)
         subtitle_run.italic = True
-        subtitle_run.font.size = Pt(13)
+        subtitle_run.font.size = Pt(14)
         subtitle_run.font.color.rgb = secondary
 
     rule_below = doc.add_paragraph()
     rule_below.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _add_bottom_border(rule_below, primary_hex, size="10")
+    _add_bottom_border(rule_below, accent_hex, size="10")
 
     doc.add_paragraph()
 
@@ -869,7 +894,88 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
         org_run.bold = True
         org_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
+    doc.add_paragraph()
+    _add_cover_details_table(doc, primary, accent_hex)
+
+    doc.add_paragraph()
+    doc.add_paragraph()
+
+    tagline_para = doc.add_paragraph()
+    tagline_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    tagline_run = tagline_para.add_run(
+        "Developed in alignment with accredited curriculum and assessment specifications"
+    )
+    tagline_run.italic = True
+    tagline_run.font.size = Pt(9)
+    tagline_run.font.color.rgb = secondary
+
+    for _ in range(6):
+        doc.add_paragraph()
+
+    bottom_band = doc.add_paragraph()
+    bottom_band.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    bottom_band.paragraph_format.space_before = Pt(0)
+    bottom_band.paragraph_format.space_after = Pt(0)
+    _shade_paragraph(bottom_band, primary_hex)
+    bottom_run = bottom_band.add_run("PREPARED FOR INTERNAL TRAINING USE")
+    bottom_run.bold = True
+    bottom_run.font.size = Pt(9)
+    bottom_run.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+
     doc.add_page_break()
+
+def _center_table(table):
+    """Centers a table on the page. python-docx has no WD_TABLE_ALIGNMENT import
+    already in this file, so this sets the underlying <w:jc> directly."""
+    tbl_pr = table._tbl.tblPr
+    jc = OxmlElement("w:jc")
+    jc.set(qn("w:val"), "center")
+    tbl_pr.append(jc)
+
+
+def _add_cover_details_table(doc: Document, primary, accent_hex: str):
+    """Compact fill-in-by-hand block on the cover page recording who this pack
+    belongs to and where/when it was issued."""
+    rule_above = doc.add_paragraph()
+    rule_above.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_bottom_border(rule_above, accent_hex, size="4")
+
+    heading = doc.add_paragraph()
+    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    h_run = heading.add_run("Learner / Facility Details")
+    h_run.bold = True
+    h_run.font.size = Pt(12)
+    h_run.font.color.rgb = primary
+
+    fields = [
+        "Learner Name",
+        "Learner / ID Number",
+        "Training Provider / Facility Name",
+        "Facilitator / Assessor Name",
+        "SETA / Qualification Code",
+        "Date Issued",
+    ]
+
+    table = doc.add_table(rows=len(fields), cols=2)
+    table.style = "Table Grid"
+    table.autofit = False
+    _center_table(table)
+    for i, label in enumerate(fields):
+        table.columns[0].width = Inches(2.4)
+        table.columns[1].width = Inches(3.4)
+        label_cell = table.cell(i, 0)
+        label_cell.width = Inches(2.4)
+        label_cell.text = label
+        label_cell.paragraphs[0].runs[0].bold = True
+        label_cell.paragraphs[0].runs[0].font.size = Pt(10)
+        value_cell = table.cell(i, 1)
+        value_cell.width = Inches(3.4)
+        value_cell.text = ""
+
+    doc.add_paragraph()
+    rule_below = doc.add_paragraph()
+    rule_below.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_bottom_border(rule_below, accent_hex, size="4")
 
 def _add_hyperlink(paragraph, url, text, color_hex="0563C1"):
     """Adds a real, clickable hyperlink to a paragraph — python-docx has no built-in

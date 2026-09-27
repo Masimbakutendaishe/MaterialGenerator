@@ -7,8 +7,8 @@ from docx.shared import Pt, Inches
 from app.services.ai_service import generate_qcto_assessment_content
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
-    _add_learner_registration_details,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
+    _add_learner_registration_details, _add_ruled_line,
 )
 
 def _add_document_control_and_roles(doc, primary, primary_hex, module_type, qualification_title):
@@ -235,7 +235,8 @@ def _add_part_a2_1(doc, primary, primary_hex, module_type):
         sub.add_run(section_title).bold = True
         for _ in range(2):
             p = doc.add_paragraph(style="List Bullet")
-            p.add_run("_" * 80)
+            p.paragraph_format.space_after = Pt(6)
+            _add_bottom_border(p, primary_hex, size="6")
 
     doc.add_paragraph()
     doc.add_paragraph("Ratio and competence compliance").runs[0].bold = True
@@ -570,8 +571,8 @@ def _add_module_alignment_table(doc, primary, primary_hex, module, module_type):
     total_weight_pct = sum(w for w in weight_pcts if w) if module_type == "KM" else 0
 
     for i, item in enumerate(items, start=1):
-        item_code = item.get(item_code_key, "") if isinstance(item, dict) else ""
-        item_title = item.get(item_title_key, "") if isinstance(item, dict) else str(item)
+        item_code = (item.get(item_code_key) or "") if isinstance(item, dict) else ""
+        item_title = (item.get(item_title_key) or "") if isinstance(item, dict) else str(item)
         w = weight_pcts[i - 1]
         weight_display = f"{w:.0f}%" if w else ""
 
@@ -601,6 +602,7 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
 
@@ -610,7 +612,7 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
     doc = Document()
 
     _set_default_font(doc, brand_colors.get("font"))
-    _build_branded_cover(doc, qualification_title, label, organization_name, logo_bytes, primary, primary_hex, secondary)
+    _build_branded_cover(doc, qualification_title, label, organization_name, logo_bytes, primary, primary_hex, secondary, accent_hex=accent_hex)
 
     details_table = doc.add_table(rows=6, cols=2)
     details_table.style = "Table Grid"
@@ -674,9 +676,7 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
 
                 blank_lines = max(q.get("blank_lines", 3), min(round(q.get("marks", 0) * 0.8), 8))
                 for _ in range(blank_lines):
-                    line_para = doc.add_paragraph()
-                    line_para.paragraph_format.space_after = Pt(8)
-                    line_para.add_run("_" * 100)
+                    _add_ruled_line(doc, primary_hex)
 
             section_total_p = doc.add_paragraph()
             section_total_p.add_run(f"Section Total: {section_marks} marks").bold = True
@@ -710,11 +710,11 @@ def build_qcto_assessment_docx(title: str, syllabus_content: dict, module_type: 
 
     doc.add_paragraph()
     doc.add_paragraph("Assessor Comments:").runs[0].bold = True
-    doc.add_paragraph("_" * 100)
+    _add_ruled_line(doc, primary_hex)
 
     doc.add_paragraph()
     doc.add_paragraph("Moderator Comments:").runs[0].bold = True
-    doc.add_paragraph("_" * 100)
+    _add_ruled_line(doc, primary_hex)
 
     doc.add_paragraph()
     sig_table = doc.add_table(rows=3, cols=2)

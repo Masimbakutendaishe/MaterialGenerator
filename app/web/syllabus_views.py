@@ -424,6 +424,15 @@ def delete_syllabus(syllabus_id):
         for review in reviews:
             db.session.delete(review)
 
+    if job_ids:
+        from app.models.review import Notification
+        # Notification.link_job_id is a nullable FK with no DB-level cascade -- null it out
+        # rather than deleting the notification itself, so a user's notification history
+        # survives even after the job it originally linked to is gone.
+        Notification.query.filter(Notification.link_job_id.in_(job_ids)).update(
+            {"link_job_id": None}, synchronize_session=False
+        )
+
     for job in jobs:
         db.session.delete(job)
     for package in packages:

@@ -16,8 +16,8 @@ from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.document_service import (
     _hex_to_rgb, _build_branded_cover, _add_branded_header_footer, _add_bottom_border,
-    DEFAULT_PRIMARY, DEFAULT_SECONDARY, _set_default_font,
-    _add_learner_registration_details,
+    DEFAULT_PRIMARY, DEFAULT_SECONDARY, DEFAULT_ACCENT, _set_default_font,
+    _add_learner_registration_details, _add_ruled_line,
 )
 from app.services.ai_service import (
     parallel_map, generate_km_short_answer_questions, generate_km_exam_objective_questions,
@@ -243,7 +243,7 @@ def _add_short_answer_section(doc, km_modules, primary, primary_hex, job_id=None
             marks_run.italic = True
             blank_lines = max(q.get("blank_lines", 4), min(round(q.get("marks", 0) * 0.8), 10))
             for _ in range(blank_lines):
-                doc.add_paragraph("_" * 100).paragraph_format.space_after = Pt(6)
+                _add_ruled_line(doc, primary_hex)
             doc.add_paragraph()
             q_number += 1
             total_marks += q.get("marks", 0)
@@ -283,7 +283,7 @@ def _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules
                     note_p = doc.add_paragraph()
                     note_p.add_run(f"({pm_code}: {pm_module.get('title', '')})").italic = True
                     for _ in range(4):
-                        doc.add_paragraph("_" * 100).paragraph_format.space_after = Pt(6)
+                        _add_ruled_line(doc, primary_hex)
                     doc.add_paragraph()
     if scenario_count == 0:
         doc.add_paragraph("No Practical Module content was linked via the ISA for this qualification.")
@@ -316,7 +316,7 @@ def _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules
                     note_p = doc.add_paragraph()
                     note_p.add_run(f"({wm_code}: {wm_module.get('title', '')})").italic = True
                     for _ in range(4):
-                        doc.add_paragraph("_" * 100).paragraph_format.space_after = Pt(6)
+                        _add_ruled_line(doc, primary_hex)
                     doc.add_paragraph()
     if workplace_count == 0:
         doc.add_paragraph("No Workplace Module content was linked via the ISA for this qualification.")
@@ -390,8 +390,8 @@ def _add_learner_declaration(doc, primary, primary_hex):
         doc.add_paragraph(item, style="List Bullet")
 
     doc.add_paragraph("I have special needs and they are:")
-    doc.add_paragraph("_" * 100)
-    doc.add_paragraph("_" * 100)
+    _add_ruled_line(doc, primary_hex)
+    _add_ruled_line(doc, primary_hex)
     doc.add_page_break()
 
 
@@ -409,8 +409,8 @@ def _add_final_results(doc, primary, primary_hex):
 
     doc.add_paragraph()
     doc.add_paragraph("The learner is not yet competent in the following areas:").runs[0].bold = True
-    doc.add_paragraph("_" * 100)
-    doc.add_paragraph("_" * 100)
+    _add_ruled_line(doc, primary_hex)
+    _add_ruled_line(doc, primary_hex)
 
     doc.add_paragraph()
     doc.add_paragraph("Declaration by Learner").runs[0].bold = True
@@ -463,6 +463,7 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
+    accent_hex = brand_colors.get("accent", DEFAULT_ACCENT).lstrip("#") if brand_colors.get("accent") else DEFAULT_ACCENT
     primary = _hex_to_rgb(primary_hex, DEFAULT_PRIMARY)
     secondary = _hex_to_rgb(secondary_hex, DEFAULT_SECONDARY)
     qualification_title = syllabus_content.get("qualification_title", "") or title
@@ -489,7 +490,7 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     doc = Document()
 
     _set_default_font(doc, brand_colors.get("font"))
-    _build_branded_cover(doc, qualification_title, "Final Exam", organization_name, logo_bytes, primary, primary_hex, secondary)
+    _build_branded_cover(doc, qualification_title, "Final Exam", organization_name, logo_bytes, primary, primary_hex, secondary, accent_hex=accent_hex)
 
     _add_exam_header_table(doc, primary, primary_hex)
     _add_learner_registration_details(doc, primary, primary_hex)

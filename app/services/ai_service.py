@@ -1177,7 +1177,7 @@ supervisor said "stop the line")."""
         # list; extra budget is added per additional element beyond that, since the list
         # now needs one item per element for genuine individual coverage rather than a
         # fixed 4 generic points regardless of how many elements this topic actually has.
-        dynamic_max_tokens = 2600 + max(0, len(elements) - 4) * 50
+        dynamic_max_tokens = min(8000, 3000 + len(elements) * 400)
         raw_response = _call_model("textbook_writing", prompt, max_tokens=dynamic_max_tokens, job_id=job_id)
         try:
             return json.loads(raw_response)

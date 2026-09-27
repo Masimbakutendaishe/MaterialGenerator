@@ -83,6 +83,8 @@ def retry_qcto_extraction_task(syllabus_id: str, raw_text: str):
                     extraction_warnings.append(f"{module.get('module_code', module.get('title', ''))}: extraction failed")
                     continue
                 module.update(result)
+                if not _module_has_detail(module):
+                    extraction_warnings.append(f"{module.get('module_code', module.get('title', ''))}: extraction returned no usable detail")
 
         # Fresh reassignment — plain db.JSON columns don't auto-detect in-place mutation
         # of nested dicts/lists, so this forces SQLAlchemy to recognize the change.
@@ -144,6 +146,8 @@ def process_qcto_syllabus_task(syllabus_id: str, raw_text: str):
                     extraction_warnings.append(f"{module.get('module_code', module.get('title', ''))}: extraction failed")
                     continue
                 module.update(result)
+                if not _module_has_detail(module):
+                    extraction_warnings.append(f"{module.get('module_code', module.get('title', ''))}: extraction returned no usable detail")
 
         db.session.expire_all()
         fresh = Syllabus.query.get(syllabus_id)
