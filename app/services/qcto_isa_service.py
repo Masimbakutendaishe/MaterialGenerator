@@ -154,25 +154,32 @@ def _add_rollout_elo_guidance(doc, exit_level_outcomes, clusters, elo_cluster_ma
     doc.add_paragraph()
 
     for isa_number, elo in enumerate(exit_level_outcomes, start=1):
-        elo_code = elo.get("code", "")
+        elo_code = elo.get("code") or ""
         elo_heading = doc.add_paragraph()
         eh_run = elo_heading.add_run(f"{elo_code}" + (f" -- {elo.get('title')}" if elo.get("title") else ""))
         eh_run.bold = True
         eh_run.font.size = Pt(14)
         eh_run.font.color.rgb = secondary
 
-        for outcome in elo.get("outcomes", []):
+        for outcome in (elo.get("outcomes") or []):
             doc.add_paragraph(outcome, style="List Bullet")
 
         doc.add_paragraph()
 
         linked_cluster_numbers = elo_cluster_mapping.get(elo_code, [])
         linked_clusters = [c for c in clusters if c["cluster_number"] in linked_cluster_numbers]
+        if not linked_clusters and clusters:
+            # reason_elo_cluster_mapping already guarantees every ELO gets at least its
+            # closest cluster, so this only fires if elo_cluster_mapping fell back to {}
+            # entirely (e.g. the AI call failed) -- recover the same way, here, directly.
+            from app.services.ai_service import _closest_cluster_number
+            closest_number = _closest_cluster_number(elo, clusters)
+            linked_clusters = [c for c in clusters if c["cluster_number"] == closest_number]
         if linked_clusters:
             names = [f"Cluster {c['cluster_number']} ({c['km_module'].get('title', '')})" for c in linked_clusters]
             related_value = ", ".join(names)
         else:
-            related_value = "No cluster was found to be genuinely linked to this Exit Level Outcome."
+            related_value = "This qualification has no teaching clusters to link (no Knowledge Modules found)."
 
         isa_value = f"After the related cluster(s) above are taught, learners write ISA {isa_number}, which addresses this Exit Level Outcome."
 

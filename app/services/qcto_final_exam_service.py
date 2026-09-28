@@ -203,15 +203,53 @@ def _add_true_false_section(doc, tf_statements, primary, primary_hex):
     doc.add_page_break()
 
 
-def _add_short_answer_section(doc, km_modules, primary, primary_hex, job_id=None):
+def _fallback_short_answer_questions(topic):
+    """Builds short-answer questions directly from a topic's own assessment criteria or
+    elements text, with no AI call -- a deterministic last resort so a section can never
+    end up with 0 marks purely because the AI returned nothing usable."""
+    items = topic.get("assessment_criteria") or topic.get("elements") or []
+    questions = []
+    for item in items[:3]:
+        text = item if isinstance(item, str) else (item.get("text", "") if isinstance(item, dict) else "")
+        text = (text or "").strip()
+        if not text:
+            continue
+        questions.append({"question_text": f"Explain: {text}", "marks": 5, "blank_lines": 5})
+    if not questions:
+        title = topic.get("title", "this topic")
+        questions.append({
+            "question_text": f"Explain, in your own words, what {title} covers and why it matters.",
+            "marks": 5, "blank_lines": 5,
+        })
+    return questions
+
+
+def _add_short_answer_section(doc, km_modules, primary, primary_hex, job_id=None, all_km_modules=None):
     _section_heading(doc, "Section D: Short Answer", primary, primary_hex)
     doc.add_paragraph("Answer the following questions in your own words.")
 
-    topics_to_process = []
-    for module in km_modules:
-        for topic in module.get("topics", []):
-            if topic.get("assessment_criteria") or topic.get("elements"):
-                topics_to_process.append(topic)
+    def _collect_short_answer_topics(modules):
+        found = []
+        for module in modules:
+            for topic in module.get("topics", []):
+                if topic.get("assessment_criteria") or topic.get("elements"):
+                    found.append(topic)
+        return found
+
+    topics_to_process = _collect_short_answer_topics(km_modules)
+    if not topics_to_process and all_km_modules:
+        # This ELO's own narrow module subset had no usable topics -- fall back to the
+        # full qualification's KM modules rather than shipping an empty section with 0
+        # marks. A learner should never receive an ISA with a blank assessment section.
+        topics_to_process = _collect_short_answer_topics(all_km_modules)
+    if not topics_to_process:
+        # Last resort: take any topic at all (even without assessment criteria/elements)
+        # so the section is never left completely empty.
+        for modules in (km_modules, all_km_modules or []):
+            for module in modules:
+                topics_to_process.extend(module.get("topics", []))
+            if topics_to_process:
+                break
 
     # A real time-limited exam samples a representative set of key topics rather than
     # testing every single one exhaustively — without a cap, a large curriculum (many
@@ -248,45 +286,103 @@ def _add_short_answer_section(doc, km_modules, primary, primary_hex, job_id=None
             q_number += 1
             total_marks += q.get("marks", 0)
 
+    if total_marks == 0:
+        # The AI produced nothing usable for any topic here -- build questions directly
+        # from the topics' own assessment criteria/elements text instead, so this section
+        # is never shipped empty with 0 marks.
+        fallback_topics = topics_to_process or _collect_short_answer_topics(all_km_modules or [])
+        for topic in fallback_topics:
+            for q in _fallback_short_answer_questions(topic):
+                q_p = doc.add_paragraph()
+                q_run = q_p.add_run(f"{q_number}. {q['question_text']}")
+                q_run.bold = True
+                marks_run = q_p.add_run(f"  ({q['marks']})")
+                marks_run.italic = True
+                for _ in range(q["blank_lines"]):
+                    _add_ruled_line(doc, primary_hex)
+                doc.add_paragraph()
+                q_number += 1
+                total_marks += q["marks"]
+
     doc.add_paragraph(f"Total = {total_marks}").runs[0].bold = True
     doc.add_page_break()
     return total_marks
 
 
-def _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules, link_lookup, primary, primary_hex, secondary):
-    pm_by_code = {m.get("module_code", ""): m for m in pm_modules}
-    wm_by_code = {m.get("module_code", ""): m for m in wm_modules}
-
-    scenario_count = 0
-    workplace_count = 0
-
-    _section_heading(doc, "Section E: Practical Scenarios", primary, primary_hex)
-    doc.add_paragraph("Respond to each scenario as you would in a real workplace situation.")
-    covered_pm_codes = set()
+def _collect_scenario_items(km_modules, pm_by_code, link_lookup):
+    items = []
+    covered = set()
     for module in km_modules:
         for topic in module.get("topics", []):
             link_info = link_lookup.get(topic.get("topic_code", ""), {"pm": [], "wm": []})
             for pm_code in link_info.get("pm", []):
-                if pm_code in covered_pm_codes or pm_code not in pm_by_code:
+                if pm_code in covered or pm_code not in pm_by_code:
                     continue
-                covered_pm_codes.add(pm_code)
+                covered.add(pm_code)
                 pm_module = pm_by_code[pm_code]
                 for pa_raw in pm_module.get("performance_assessment", []):
                     pa_item = pa_raw.get("text", "") if isinstance(pa_raw, dict) else pa_raw
-                    scenario_count += 1
-                    q_p = doc.add_paragraph()
-                    q_p.add_run(
-                        f"{scenario_count}. You have been tasked with applying your practical "
-                        f"skills in a real workplace context. {pa_item}. Describe, step by "
-                        f"step, how you would carry this out."
-                    ).bold = True
-                    note_p = doc.add_paragraph()
-                    note_p.add_run(f"({pm_code}: {pm_module.get('title', '')})").italic = True
-                    for _ in range(4):
-                        _add_ruled_line(doc, primary_hex)
-                    doc.add_paragraph()
+                    if pa_item:
+                        items.append((pm_code, pm_module.get("title", ""), pa_item))
+    return items
+
+
+def _collect_workplace_items(km_modules, wm_by_code, link_lookup):
+    items = []
+    covered = set()
+    for module in km_modules:
+        for topic in module.get("topics", []):
+            link_info = link_lookup.get(topic.get("topic_code", ""), {"pm": [], "wm": []})
+            for wm_code in link_info.get("wm", []):
+                if wm_code in covered or wm_code not in wm_by_code:
+                    continue
+                covered.add(wm_code)
+                wm_module = wm_by_code[wm_code]
+                for we_item in wm_module.get("work_experience_elements", []):
+                    if we_item:
+                        items.append((wm_code, wm_module.get("title", ""), we_item))
+    return items
+
+
+def _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules, link_lookup, primary, primary_hex, secondary, all_km_modules=None, all_pm_modules=None, all_wm_modules=None):
+    pm_by_code = {m.get("module_code", ""): m for m in pm_modules}
+    wm_by_code = {m.get("module_code", ""): m for m in wm_modules}
+    all_pm_by_code = {m.get("module_code", ""): m for m in (all_pm_modules or [])}
+    all_wm_by_code = {m.get("module_code", ""): m for m in (all_wm_modules or [])}
+
+    _section_heading(doc, "Section E: Practical Scenarios", primary, primary_hex)
+    doc.add_paragraph("Respond to each scenario as you would in a real workplace situation.")
+
+    scenario_items = _collect_scenario_items(km_modules, pm_by_code, link_lookup)
+    if not scenario_items and all_km_modules:
+        # This ELO's own narrow module subset had no linked Practical Module content --
+        # fall back to the full qualification's traceability so the section isn't empty.
+        scenario_items = _collect_scenario_items(all_km_modules, all_pm_by_code or pm_by_code, link_lookup)
+    if not scenario_items:
+        # Last resort: bypass the ISA traceability entirely and pull directly from every
+        # Practical Module's own performance assessment content.
+        for pm_module in (all_pm_modules or pm_modules):
+            for pa_raw in pm_module.get("performance_assessment", []):
+                pa_item = pa_raw.get("text", "") if isinstance(pa_raw, dict) else pa_raw
+                if pa_item:
+                    scenario_items.append((pm_module.get("module_code", ""), pm_module.get("title", ""), pa_item))
+
+    scenario_count = 0
+    for pm_code, pm_title, pa_item in scenario_items:
+        scenario_count += 1
+        q_p = doc.add_paragraph()
+        q_p.add_run(
+            f"{scenario_count}. You have been tasked with applying your practical "
+            f"skills in a real workplace context. {pa_item}. Describe, step by "
+            f"step, how you would carry this out."
+        ).bold = True
+        note_p = doc.add_paragraph()
+        note_p.add_run(f"({pm_code}: {pm_title})").italic = True
+        for _ in range(4):
+            _add_ruled_line(doc, primary_hex)
+        doc.add_paragraph()
     if scenario_count == 0:
-        doc.add_paragraph("No Practical Module content was linked via the ISA for this qualification.")
+        doc.add_paragraph("No Practical Module content exists for this qualification.")
     scenario_marks = scenario_count * SCENARIO_MARKS
     doc.add_paragraph(f"Total = {scenario_marks}").runs[0].bold = True
     doc.add_page_break()
@@ -296,30 +392,32 @@ def _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules
         "Drawing on your own real experience recorded in your WM Logbook, describe a "
         "specific instance for each question below."
     )
-    covered_wm_codes = set()
-    for module in km_modules:
-        for topic in module.get("topics", []):
-            link_info = link_lookup.get(topic.get("topic_code", ""), {"pm": [], "wm": []})
-            for wm_code in link_info.get("wm", []):
-                if wm_code in covered_wm_codes or wm_code not in wm_by_code:
-                    continue
-                covered_wm_codes.add(wm_code)
-                wm_module = wm_by_code[wm_code]
-                for we_item in wm_module.get("work_experience_elements", []):
-                    workplace_count += 1
-                    q_p = doc.add_paragraph()
-                    q_p.add_run(
-                        f"{workplace_count}. Referring to your WM Logbook, describe a "
-                        f"specific instance where you: {we_item}. Include what the situation "
-                        f"was, what you did, and what the outcome was."
-                    ).bold = True
-                    note_p = doc.add_paragraph()
-                    note_p.add_run(f"({wm_code}: {wm_module.get('title', '')})").italic = True
-                    for _ in range(4):
-                        _add_ruled_line(doc, primary_hex)
-                    doc.add_paragraph()
+
+    workplace_items = _collect_workplace_items(km_modules, wm_by_code, link_lookup)
+    if not workplace_items and all_km_modules:
+        workplace_items = _collect_workplace_items(all_km_modules, all_wm_by_code or wm_by_code, link_lookup)
+    if not workplace_items:
+        for wm_module in (all_wm_modules or wm_modules):
+            for we_item in wm_module.get("work_experience_elements", []):
+                if we_item:
+                    workplace_items.append((wm_module.get("module_code", ""), wm_module.get("title", ""), we_item))
+
+    workplace_count = 0
+    for wm_code, wm_title, we_item in workplace_items:
+        workplace_count += 1
+        q_p = doc.add_paragraph()
+        q_p.add_run(
+            f"{workplace_count}. Referring to your WM Logbook, describe a "
+            f"specific instance where you: {we_item}. Include what the situation "
+            f"was, what you did, and what the outcome was."
+        ).bold = True
+        note_p = doc.add_paragraph()
+        note_p.add_run(f"({wm_code}: {wm_title})").italic = True
+        for _ in range(4):
+            _add_ruled_line(doc, primary_hex)
+        doc.add_paragraph()
     if workplace_count == 0:
-        doc.add_paragraph("No Workplace Module content was linked via the ISA for this qualification.")
+        doc.add_paragraph("No Workplace Module content exists for this qualification.")
     workplace_marks = workplace_count * WORKPLACE_MARKS
     doc.add_paragraph(f"Total = {workplace_marks}").runs[0].bold = True
     doc.add_page_break()
@@ -459,7 +557,9 @@ def _build_keyword_link_lookup(km_modules, pm_modules, wm_modules):
 
 def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_name: str = None,
                                 logo_bytes: bytes = None, brand_colors: dict = None,
-                                job_id: str = None) -> BytesIO:
+                                job_id: str = None, isa_number: int = None, link_lookup: dict = None,
+                                all_km_modules: list = None, all_pm_modules: list = None,
+                                all_wm_modules: list = None) -> BytesIO:
     brand_colors = brand_colors or {}
     primary_hex = brand_colors.get("primary", DEFAULT_PRIMARY).lstrip("#") if brand_colors.get("primary") else DEFAULT_PRIMARY
     secondary_hex = brand_colors.get("secondary", DEFAULT_SECONDARY).lstrip("#") if brand_colors.get("secondary") else DEFAULT_SECONDARY
@@ -473,10 +573,15 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     pm_modules = [m for m in all_modules if m.get("module_type") == "PM"]
     wm_modules = [m for m in all_modules if m.get("module_type") == "WM"]
 
-    try:
-        link_lookup = reason_isa_traceability(km_modules, pm_modules, wm_modules, job_id=job_id)
-    except Exception:
-        link_lookup = _build_keyword_link_lookup(km_modules, pm_modules, wm_modules)
+    if link_lookup is None:
+        # Only computed here when the caller hasn't already worked it out on the full
+        # qualification's module set (build_qcto_isa_set_zip passes it through so every
+        # per-ELO ISA reuses the same, more accurate, full-context traceability instead of
+        # each one recomputing it on its own narrowed subset).
+        try:
+            link_lookup = reason_isa_traceability(km_modules, pm_modules, wm_modules, job_id=job_id)
+        except Exception:
+            link_lookup = _build_keyword_link_lookup(km_modules, pm_modules, wm_modules)
 
     try:
         objective_data = generate_km_exam_objective_questions(km_modules, job_id=job_id)
@@ -490,7 +595,8 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     doc = Document()
 
     _set_default_font(doc, brand_colors.get("font"))
-    _build_branded_cover(doc, qualification_title, "Final Exam", organization_name, logo_bytes, primary, primary_hex, secondary, accent_hex=accent_hex)
+    cover_subtitle = f"Integrated Summative Assessment {isa_number}" if isa_number else "Integrated Summative Assessment"
+    _build_branded_cover(doc, qualification_title, cover_subtitle, organization_name, logo_bytes, primary, primary_hex, secondary, accent_hex=accent_hex)
 
     _add_exam_header_table(doc, primary, primary_hex)
     _add_learner_registration_details(doc, primary, primary_hex)
@@ -506,8 +612,8 @@ def build_qcto_final_exam_docx(title: str, syllabus_content: dict, organization_
     _add_multiple_choice_section(doc, mc_questions, primary, primary_hex, secondary)
     _add_matching_columns_section(doc, matching_pairs, primary, primary_hex)
     _add_true_false_section(doc, tf_statements, primary, primary_hex)
-    short_answer_marks = _add_short_answer_section(doc, km_modules, primary, primary_hex, job_id=job_id)
-    scenario_marks, workplace_marks = _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules, link_lookup, primary, primary_hex, secondary)
+    short_answer_marks = _add_short_answer_section(doc, km_modules, primary, primary_hex, job_id=job_id, all_km_modules=all_km_modules)
+    scenario_marks, workplace_marks = _add_scenario_and_workplace_sections(doc, km_modules, pm_modules, wm_modules, link_lookup, primary, primary_hex, secondary, all_km_modules=all_km_modules, all_pm_modules=all_pm_modules, all_wm_modules=all_wm_modules)
 
     full_section_marks = section_marks + [
         ("Short Answer", short_answer_marks),
@@ -535,7 +641,9 @@ def build_qcto_isa_set_zip(title: str, syllabus_content: dict, organization_name
     ISAs come one after another, one per Exit Level Outcome, rather than a single combined
     exam. Reuses the existing, unchanged build_qcto_final_exam_docx per ELO, called with
     syllabus_content filtered down to only the modules in that ELO's linked cluster(s) —
-    so each ISA's content genuinely corresponds to the outcome it addresses.
+    so each ISA's content genuinely corresponds to the outcome it addresses. The full
+    qualification's link_lookup and module lists are also passed through so each ISA can
+    fall back to them rather than ever shipping an empty assessment section.
     Falls back to a single combined exam (the qualification's full module set) if no
     External Assessment Specification has been uploaded, so the document type still
     produces something useful either way."""
@@ -574,7 +682,7 @@ def build_qcto_isa_set_zip(title: str, syllabus_content: dict, organization_name
     zip_buf = BytesIO()
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for isa_number, elo in enumerate(exit_level_outcomes, start=1):
-            elo_code = elo.get("code", "")
+            elo_code = elo.get("code") or ""
             linked_cluster_numbers = elo_cluster_mapping.get(elo_code, [])
             linked_clusters = [c for c in clusters if c["cluster_number"] in linked_cluster_numbers]
 
@@ -596,6 +704,11 @@ def build_qcto_isa_set_zip(title: str, syllabus_content: dict, organization_name
                 logo_bytes=logo_bytes,
                 brand_colors=brand_colors,
                 job_id=job_id,
+                isa_number=isa_number,
+                link_lookup=link_lookup,
+                all_km_modules=km_modules,
+                all_pm_modules=pm_modules,
+                all_wm_modules=wm_modules,
             )
             safe_code = "".join(c if c.isalnum() or c in " _-" else "" for c in elo_code).strip().replace(" ", "_")
             zf.writestr(f"ISA_{isa_number}_{safe_code or 'ELO'}.docx", deck_buf.getvalue())

@@ -607,6 +607,8 @@ def generate_package_document_task(job_id: str):
         db.session.commit()
 
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         db.session.expire_all()
         fresh_job = GenerationJob.query.get(job.id)
         if fresh_job and fresh_job.status == "cancelled":

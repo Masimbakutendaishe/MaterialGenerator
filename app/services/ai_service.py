@@ -1450,15 +1450,73 @@ def _extract_relevant_window(raw_text: str, module_code: str, module_title: str 
     end = min(len(raw_text), idx + window_size)
     return raw_text[start:end]
 
+def _closest_cluster_number(elo: dict, clusters: list):
+    """Keyword-overlap fallback used when the AI mapping leaves an ELO unlinked -- picks
+    whichever cluster's Knowledge Module title/topics share the most words with the ELO's
+    own title/outcomes text. Returns None only if there are no clusters at all."""
+    if not clusters:
+        return None
+    elo_text = ((elo.get("title") or "") + " " + "; ".join(elo.get("outcomes") or [])).lower()
+    elo_words = set(re.findall(r"[a-z]{4,}", elo_text))
+
+    best_cluster_number = clusters[0]["cluster_number"]
+    best_score = -1
+    for cluster in clusters:
+        km_module = cluster["km_module"]
+        cluster_text = (
+            (km_module.get("title") or "") + " " +
+            "; ".join(t.get("title", "") for t in km_module.get("topics", []))
+        ).lower()
+        cluster_words = set(re.findall(r"[a-z]{4,}", cluster_text))
+        score = len(elo_words & cluster_words)
+        if score > best_score:
+            best_score = score
+            best_cluster_number = cluster["cluster_number"]
+    return best_cluster_number
+
+
 def reason_elo_cluster_mapping(exit_level_outcomes: list, clusters: list, job_id: str = None) -> dict:
     """Reasons about which cluster(s) genuinely address each Exit Level Outcome (ELO) — a
     semantic judgement based on real topic/IAC content, not keyword matching. Returns
-    {elo_code: [cluster_number, ...]}, defaulting any ELO the model omits to no linked
-    clusters (an honest default, not a crash)."""
+    {elo_code: [cluster_number, ...]}. Every ELO is guaranteed at least its closest-matching
+    cluster (a keyword-overlap fallback is used if the model omits one or leaves an ELO
+    unlinked) -- an ELO is only ever left with an empty list if there are genuinely no
+    clusters at all to link to.
+
+    When job_id is given, the result is cached onto the syllabus's own content (keyed by a
+    signature of the ELO codes and cluster identities) and reused on subsequent calls for
+    the same qualification -- so a standalone ISA Set generation and its qualification's
+    Rollout Plan always agree on which cluster(s) address which ELO, instead of each
+    generation independently re-reasoning and potentially landing on a different answer."""
+    signature = {
+        "elo_codes": sorted(e.get("code") or "" for e in exit_level_outcomes),
+        "clusters": sorted(
+            f"{c.get('cluster_number')}:{c.get('km_module', {}).get('module_code', '')}"
+            for c in clusters
+        ),
+    }
+
+    syllabus = None
+    if job_id:
+        try:
+            from app.models.generation_job import GenerationJob
+            from app.models.syllabus import Syllabus
+            job = GenerationJob.query.get(job_id)
+            if job:
+                syllabus = Syllabus.query.get(job.syllabus_id)
+                if syllabus:
+                    existing_content = syllabus.content or {}
+                    cached_mapping = existing_content.get("elo_cluster_mapping")
+                    cached_signature = existing_content.get("elo_cluster_mapping_signature")
+                    if cached_mapping is not None and cached_signature == signature:
+                        return cached_mapping
+        except Exception:
+            syllabus = None
+
     elo_lines = []
     for elo in exit_level_outcomes:
-        outcomes_text = "; ".join(elo.get("outcomes", []))
-        elo_lines.append(f"- {elo.get('code', '')} ({elo.get('title') or 'untitled'}): {outcomes_text}")
+        outcomes_text = "; ".join(elo.get("outcomes") or [])
+        elo_lines.append(f"- {elo.get('code') or ''} ({elo.get('title') or 'untitled'}): {outcomes_text}")
 
     cluster_lines = []
     for cluster in clusters:
@@ -1478,7 +1536,11 @@ Teaching Clusters (each built around one Knowledge Module and its linked Practic
 
 For EACH Exit Level Outcome, decide which cluster(s) genuinely cover the competency it describes.
 An ELO is usually addressed by one or a small number of clusters — do not link every cluster to
-every ELO. Only link where the actual content substantively overlaps.
+every ELO. Prefer linking the cluster(s) with the strongest genuine content overlap.
+
+EVERY Exit Level Outcome listed above MUST appear in your output with at least one cluster
+number, even if the match is not perfect — pick the closest one rather than leaving it out.
+Never return an empty cluster_numbers list and never omit an ELO.
 
 Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 {{
@@ -1499,9 +1561,31 @@ supervisor said "stop the line")."""
         try:
             data = json.loads(_repair_json_string(raw_response))
         except json.JSONDecodeError:
-            return {}
+            data = {"mappings": []}
 
-    return {m.get("elo_code", ""): m.get("cluster_numbers", []) for m in data.get("mappings", [])}
+    mapping = {m.get("elo_code", ""): list(m.get("cluster_numbers", [])) for m in data.get("mappings", [])}
+
+    # Guarantee: every ELO gets at least its closest-matching cluster. The model is asked
+    # to do this itself above, but this fallback makes it true even if the model omits an
+    # ELO entirely, returns an empty list for one, or the JSON parse failed outright.
+    for elo in exit_level_outcomes:
+        elo_code = elo.get("code") or ""
+        if not mapping.get(elo_code):
+            closest = _closest_cluster_number(elo, clusters)
+            mapping[elo_code] = [closest] if closest is not None else []
+
+    if syllabus is not None:
+        try:
+            from app.extensions import db
+            new_content = dict(syllabus.content or {})
+            new_content["elo_cluster_mapping"] = mapping
+            new_content["elo_cluster_mapping_signature"] = signature
+            syllabus.content = new_content
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    return mapping
 def generate_wm_scope_of_work_activities(we_element_text: str, module_title: str, job_id: str = None) -> list:
     """Breaks one Work Experience (WE) element down into a set of concrete, sequential
     activities the learner actually performs — for the Statement of Work Experience's
