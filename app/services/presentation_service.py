@@ -109,6 +109,10 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
             slide_type = slide_data.get("slide_type", "teach")
             slide_title = slide_data.get("title", unit_name)
             bullets = slide_data.get("bullets", outcomes)
+            diagram_bytes = None
+            if slide_data.get("model_diagram"):
+                from app.services.model_diagram_service import slide_model_diagram_png
+                diagram_bytes = slide_model_diagram_png(slide_data.get("model_diagram"), str(primary), str(accent), deck=prs)
 
             slide = prs.slides.add_slide(bullet_layout)
             _add_split_top_bar(slide, prs, primary, secondary)
@@ -128,26 +132,32 @@ def build_presentation_pptx(title: str, units: list, organization_name: str = No
             body_shape = slide.placeholders[1]
             body_shape.left = Inches(0.5)
             body_shape.top = Inches(2.2)
-            body_shape.width = Inches(6.0)
+            body_shape.width = Inches(4.2) if diagram_bytes else Inches(6.0)
             body_shape.height = Inches(4.3)
             body = body_shape.text_frame
             body.clear()
             if bullets:
                 body.text = bullets[0]
                 body.paragraphs[0].font.color.rgb = secondary
-                body.paragraphs[0].font.size = Pt(18)
+                body.paragraphs[0].font.size = Pt(16 if diagram_bytes else 18)
                 for bullet in bullets[1:]:
                     p = body.add_paragraph()
                     p.text = bullet
                     p.font.color.rgb = secondary
-                    p.font.size = Pt(18)
+                    p.font.size = Pt(16 if diagram_bytes else 18)
 
             speaker_notes = slide_data.get("speaker_notes", "")
             if speaker_notes:
                 slide.notes_slide.notes_text_frame.text = speaker_notes
 
             image_search_term = slide_data.get("image_search_term")
-            if image_search_term:
+            if diagram_bytes:
+                try:
+                    from app.services.model_diagram_service import add_fitted_picture
+                    add_fitted_picture(slide, diagram_bytes, Inches(4.9), Inches(2.2), Inches(4.7), Inches(4.3))
+                except Exception:
+                    pass
+            elif image_search_term:
                 from app.services.image_service import fetch_stock_photo
                 photo_bytes = fetch_stock_photo(image_search_term)
                 if photo_bytes:

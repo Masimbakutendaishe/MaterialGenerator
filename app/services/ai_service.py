@@ -587,6 +587,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"], ["value", "value"]]}},
         {{"type": "formula", "label": "Short name of the formula", "text": "The formula itself, e.g. Z = C + E - D", "variables": [{{"symbol": "Z", "meaning": "what Z represents"}}, {{"symbol": "C", "meaning": "what C represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
+        {{"type": "model_diagram", "kind": "layers | pyramid | cycle | matrix | hub | chevrons", "title": "Real name of the model, e.g. OSI Model", "items": [{{"label": "Element name", "detail": "Optional short description"}}], "axes": {{"columns": ["Col A", "Col B"], "rows": ["Row A", "Row B"]}}, "caption": "What this diagram shows"}},
         {{"type": "list", "items": ["<item 1>", "<item 2>", "<item 3>"], "ordered": false}},
         {{"type": "image", "search_term": "2-4 word search phrase for a common, photographable real-world subject related to this topic (e.g. 'fire extinguisher workplace' not 'workplace safety compliance procedures') — keep it general enough that a stock photo library is likely to have a genuine match, while still being concrete rather than abstract", "caption": "What this image shows"}}
       ]
@@ -595,7 +596,21 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>", "<concise takeaway 3>"]
 }}
 
-Use "diagram" for any step-by-step process, sequence, or decision flow. Use "image" ONLY for a
+Use "diagram" for any step-by-step process, sequence, or decision flow.
+
+Use "model_diagram" when this content genuinely involves a well-known, widely published model,
+framework, or standard structure (for example the OSI model, Maslow's hierarchy of needs, PDCA cycle,
+SWOT analysis, Porter's Five Forces, ADDIE, Tuckman's stages, Kolb's learning cycle, the Eisenhower
+matrix). It can be any real, established model from any field, not only these examples. Choose "kind" to
+fit the model's shape: "layers" (stacked tiers, e.g. protocol stacks), "pyramid" (hierarchies, items
+listed from TOP to BOTTOM), "cycle" (3-8 repeating steps), "matrix" (exactly 4 quadrants in the order
+top-left, top-right, bottom-left, bottom-right, with optional "axes" giving two column headings and two
+row headings), "hub" (the first item is the centre, the rest surround it), "chevrons" (3-7 sequential
+stages). Put the model's real name in "title", use its real, standard element names in their correct
+order, and keep each "detail" under 12 words. Include at most ONE model_diagram per section or unit,
+and ONLY when you are certain the model is real and directly relevant to this exact content. Pick the model that belongs to THIS section's own subject, not the overall course subject, because other sections are written separately and a model must never be repeated across sections. If no
+genuine model fits, do not include one (use "diagram" or "image" where appropriate instead).
+ Use "image" ONLY for a
 concrete physical object, tool, environment, or scene that a real photograph would meaningfully
 illustrate — never use "image" for abstract concepts or processes a diagram would represent better.
 
@@ -672,6 +687,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
       "title": "<short slide title>",
       "bullets": ["<fragment 1>", "<fragment 2>", "<fragment 3>"],
       "speaker_notes": "2-3 sentences the facilitator would say, including one concrete example.",
+      "model_diagram": "null, or a model_diagram object as described in the note below",
       "image_search_term": "2-4 word search phrase for a common, photographable real-world subject, or null if not needed — keep it general enough that a stock photo library is likely to have a genuine match"
     }},
     {{
@@ -685,6 +701,20 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
 }}
 
 Omit the practice slide entirely from the array if this unit has nothing practical to exercise.
+
+Optionally, on a "teach" slide ONLY, you may set "model_diagram" to an object INSTEAD of using a photo
+when the slide's concept is a well-known, widely published model or framework (for example the OSI model,
+Maslow's hierarchy of needs, PDCA cycle, SWOT analysis, Porter's Five Forces, ADDIE, Kolb's learning cycle;
+any real established model is fine). The object has this shape: {{"kind": "layers | pyramid | cycle |
+matrix | hub | chevrons", "title": "real name of the model", "items": [{{"label": "element name, 1-4 words"}}],
+"axes": {{"columns": ["Col A", "Col B"], "rows": ["Row A", "Row B"]}}}}. Use "layers" for stacked tiers,
+"pyramid" for hierarchies (items listed from TOP to BOTTOM), "cycle" for 3-8 repeating steps, "matrix" for
+exactly 4 quadrants (top-left, top-right, bottom-left, bottom-right; each item may also carry a short
+"detail"; "axes" is optional), "hub" for a central item (first) with items around it, "chevrons" for 3-7
+sequential stages. Use the model's real standard element names in their correct order. When
+"model_diagram" is an object, set "image_search_term" to null for that slide. Everywhere no genuine model
+applies, write the plain string null for "model_diagram" and use the photo as before. Never invent or
+distort a model.
 
 CRITICAL JSON SAFETY: never use a literal double-quote character (") inside any string value, even
 for quoted speech, terms, or titles — this breaks JSON parsing. If you need to show quoted speech
@@ -850,6 +880,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "table", "headers": ["Column A", "Column B"], "rows": [["value", "value"]]}},
         {{"type": "formula", "label": "Short name", "text": "The formula itself", "variables": [{{"symbol": "X", "meaning": "what X represents"}}]}},
         {{"type": "diagram", "steps": ["Step 1 label", "Step 2 label", "Step 3 label"], "caption": "What this diagram shows"}},
+        {{"type": "model_diagram", "kind": "layers | pyramid | cycle | matrix | hub | chevrons", "title": "Real name of the model, e.g. OSI Model", "items": [{{"label": "Element name", "detail": "Optional short description"}}], "axes": {{"columns": ["Col A", "Col B"], "rows": ["Row A", "Row B"]}}, "caption": "What this diagram shows"}},
         {{"type": "list", "items": ["<item 1>", "<item 2>", "<item 3>"], "ordered": false}},
         {{"type": "image", "search_term": "2-4 word search phrase for a common, photographable real-world subject related to this topic (e.g. 'fire extinguisher workplace' not 'workplace safety compliance procedures') — keep it general enough that a stock photo library is likely to have a genuine match, while still being concrete rather than abstract", "caption": "What this image shows"}}
       ]
@@ -858,7 +889,21 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
   "key_points": ["<concise takeaway 1>", "<concise takeaway 2>"]
 }}
 
-Use "diagram" for any step-by-step process, sequence, or decision flow. Use "image" ONLY for a concrete physical object, tool, environment, or scene that a real photograph would meaningfully illustrate—never use "image" for abstract concepts or processes a diagram would represent better.
+Use "diagram" for any step-by-step process, sequence, or decision flow.
+
+Use "model_diagram" when this content genuinely involves a well-known, widely published model,
+framework, or standard structure (for example the OSI model, Maslow's hierarchy of needs, PDCA cycle,
+SWOT analysis, Porter's Five Forces, ADDIE, Tuckman's stages, Kolb's learning cycle, the Eisenhower
+matrix). It can be any real, established model from any field, not only these examples. Choose "kind" to
+fit the model's shape: "layers" (stacked tiers, e.g. protocol stacks), "pyramid" (hierarchies, items
+listed from TOP to BOTTOM), "cycle" (3-8 repeating steps), "matrix" (exactly 4 quadrants in the order
+top-left, top-right, bottom-left, bottom-right, with optional "axes" giving two column headings and two
+row headings), "hub" (the first item is the centre, the rest surround it), "chevrons" (3-7 sequential
+stages). Put the model's real name in "title", use its real, standard element names in their correct
+order, and keep each "detail" under 12 words. Include at most ONE model_diagram per section or unit,
+and ONLY when you are certain the model is real and directly relevant to this exact content. Pick the model that belongs to THIS section's own subject, not the overall course subject, because other sections are written separately and a model must never be repeated across sections. If no
+genuine model fits, do not include one (use "diagram" or "image" where appropriate instead).
+ Use "image" ONLY for a concrete physical object, tool, environment, or scene that a real photograph would meaningfully illustrate—never use "image" for abstract concepts or processes a diagram would represent better.
 
 Only the FIRST section needs an info_box scope block. Every section needs at least one paragraph block. Only include scenario/table/formula/diagram/image/list blocks where genuinely relevant—do not force them into every section. One section per learning outcome. Plain text only inside strings—no asterisks, no markdown headers.
 
@@ -1145,6 +1190,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
     {{"type": "paragraph", "text": "A second paragraph continuing the explanation with more depth, or covering a distinct sub-aspect of this topic. 140-250 words."}},
     {{"type": "list", "items": ["<concise 1-2 sentence treatment of element 1>", "<concise 1-2 sentence treatment of element 2>", "... one item for EVERY element listed above, in order"], "ordered": false}},
     {{"type": "diagram", "steps": ["<step 1>", "<step 2>", "<step 3>"], "caption": "What this diagram shows"}},
+    {{"type": "model_diagram", "kind": "layers | pyramid | cycle | matrix | hub | chevrons", "title": "Real name of the model, e.g. OSI Model", "items": [{{"label": "Element name", "detail": "Optional short description"}}], "axes": {{"columns": ["Col A", "Col B"], "rows": ["Row A", "Row B"]}}, "caption": "What this diagram shows"}},
     {{"type": "image", "search_term": "2-4 word search phrase for a common, photographable real-world subject related to this topic — keep it general enough that a stock photo library is likely to have a genuine match, while still being concrete rather than abstract", "caption": "What this image shows"}},
     {{"type": "example_tip", "example": "A detailed, realistic workplace example illustrating this topic.", "tip": "A practical, actionable tip related to this topic."}}
   ]
@@ -1159,6 +1205,19 @@ genuinely fits best, as a real writer would. If elements were listed above, the 
 still include most of them as concise, substantive items (not merely restating their names) —
 just don't feel bound to include literally every single one there if a few are better explained
 in prose instead. If no elements were listed above, use 3-4 general key points in the list.
+
+Use "model_diagram" when this content genuinely involves a well-known, widely published model,
+framework, or standard structure (for example the OSI model, Maslow's hierarchy of needs, PDCA cycle,
+SWOT analysis, Porter's Five Forces, ADDIE, Tuckman's stages, Kolb's learning cycle, the Eisenhower
+matrix). It can be any real, established model from any field, not only these examples. Choose "kind" to
+fit the model's shape: "layers" (stacked tiers, e.g. protocol stacks), "pyramid" (hierarchies, items
+listed from TOP to BOTTOM), "cycle" (3-8 repeating steps), "matrix" (exactly 4 quadrants in the order
+top-left, top-right, bottom-left, bottom-right, with optional "axes" giving two column headings and two
+row headings), "hub" (the first item is the centre, the rest surround it), "chevrons" (3-7 sequential
+stages). Put the model's real name in "title", use its real, standard element names in their correct
+order, and keep each "detail" under 12 words. Include at most ONE model_diagram per section or unit,
+and ONLY when you are certain the model is real and directly relevant to this exact content. Pick the model that belongs to THIS section's own subject, not the overall course subject, because other sections are written separately and a model must never be repeated across sections. If no
+genuine model fits, do not include one (use "diagram" or "image" where appropriate instead).
 
 NEVER invent specific standard numbers, unit standard IDs, or regulatory citations you are not
 confident are real. This topic MUST include AT LEAST TWO paragraph blocks with real depth (not
@@ -1982,6 +2041,7 @@ Return ONLY valid JSON (no markdown, no commentary) in exactly this shape:
         {{"type": "paragraph", "text": "Detailed explanatory text, 140-250 words with real depth."}},
         {{"type": "list", "items": ["<key point 1>", "<key point 2>"], "ordered": false}},
         {{"type": "diagram", "steps": ["<step 1>", "<step 2>", "<step 3>"], "caption": "What this diagram shows"}},
+        {{"type": "model_diagram", "kind": "layers | pyramid | cycle | matrix | hub | chevrons", "title": "Real name of the model, e.g. OSI Model", "items": [{{"label": "Element name", "detail": "Optional short description"}}], "axes": {{"columns": ["Col A", "Col B"], "rows": ["Row A", "Row B"]}}, "caption": "What this diagram shows"}},
         {{"type": "image", "search_term": "2-4 word search phrase for a common, photographable real-world subject related to this topic — keep it general enough that a stock photo library is likely to have a genuine match, while still being concrete rather than abstract", "caption": "What this image shows"}},
         {{"type": "example_tip", "example": "A realistic workplace example.", "tip": "A practical, actionable tip."}},
         {{"type": "exercise", "scenario": "A realistic workplace scenario.", "task": "What the learner must do.", "questions": ["<reflection question 1>", "<reflection question 2>"]}}
@@ -1994,6 +2054,19 @@ NEVER invent specific standard numbers or regulatory citations you are not confi
 Every unit MUST include at least two paragraph blocks, one example_tip block, and one exercise
 block. Include a diagram block where the unit involves a step-by-step process/procedure, and an
 image block where a real photo would meaningfully illustrate a concrete tool/equipment/environment.
+
+Use "model_diagram" when this content genuinely involves a well-known, widely published model,
+framework, or standard structure (for example the OSI model, Maslow's hierarchy of needs, PDCA cycle,
+SWOT analysis, Porter's Five Forces, ADDIE, Tuckman's stages, Kolb's learning cycle, the Eisenhower
+matrix). It can be any real, established model from any field, not only these examples. Choose "kind" to
+fit the model's shape: "layers" (stacked tiers, e.g. protocol stacks), "pyramid" (hierarchies, items
+listed from TOP to BOTTOM), "cycle" (3-8 repeating steps), "matrix" (exactly 4 quadrants in the order
+top-left, top-right, bottom-left, bottom-right, with optional "axes" giving two column headings and two
+row headings), "hub" (the first item is the centre, the rest surround it), "chevrons" (3-7 sequential
+stages). Put the model's real name in "title", use its real, standard element names in their correct
+order, and keep each "detail" under 12 words. Include at most ONE model_diagram per section or unit,
+and ONLY when you are certain the model is real and directly relevant to this exact content. Pick the model that belongs to THIS section's own subject, not the overall course subject, because other sections are written separately and a model must never be repeated across sections. If no
+genuine model fits, do not include one (use "diagram" or "image" where appropriate instead).
 Use table blocks only where genuinely relevant.
 
 For the PA elements grouped into each unit: cover each one wherever it genuinely fits best — an

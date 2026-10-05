@@ -250,6 +250,41 @@ def _render_content_block(doc, block, primary_hex, secondary, accent_hex=None):
             except Exception as exc:
                 print(f"[DEBUG] diagram render failed: {exc}")
 
+    elif block_type == "model_diagram":
+        from app.services.model_diagram_service import generate_model_diagram
+        _seen = getattr(doc, "_seen_model_diagrams", None)
+        if _seen is None:
+            _seen = set()
+            try:
+                doc._seen_model_diagrams = _seen
+            except Exception:
+                pass
+        _items = block.get("items") or []
+        _first = (_items[0].get("label", "") if _items and isinstance(_items[0], dict) else "")
+        _key = ((block.get("title") or "") or _first).strip().lower()
+        _dup = bool(_key) and _key in _seen
+        if _key:
+            _seen.add(_key)
+        try:
+            png_bytes = None if _dup else generate_model_diagram(
+                block.get("kind", ""), block.get("items") or [], block.get("title", ""),
+                primary_hex=primary_hex, accent_hex=accent_hex or "F39C12", axes=block.get("axes"),
+            )
+            if png_bytes:
+                img_para = doc.add_paragraph()
+                img_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                img_para.add_run().add_picture(io.BytesIO(png_bytes), width=Inches(5.0))
+                if block.get("caption"):
+                    cap_para = doc.add_paragraph()
+                    cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    cap_run = cap_para.add_run(block["caption"])
+                    cap_run.italic = True
+                    cap_run.font.size = Pt(9)
+            else:
+                print(f"[DEBUG] model_diagram skipped (unusable data): kind={block.get('kind')!r}")
+        except Exception as exc:
+            print(f"[DEBUG] model_diagram render failed: {exc}")
+
     elif block_type == "image":
         from app.services.image_service import fetch_stock_photo
         search_term = block.get("search_term", "")
@@ -903,7 +938,7 @@ def _build_branded_cover(doc: Document, doc_title: str, doc_subtitle: str, organ
     tagline_para = doc.add_paragraph()
     tagline_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     tagline_run = tagline_para.add_run(
-        "Developed in alignment with accredited curriculum and assessment specifications"
+        "Curriculum Training Material"
     )
     tagline_run.italic = True
     tagline_run.font.size = Pt(9)

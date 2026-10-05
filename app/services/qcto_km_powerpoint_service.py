@@ -241,7 +241,11 @@ def _build_km_module_deck(module, qualification_title, organization_name, brand_
             image_search_term = slide_data.get("image_search_term")
 
             photo_bytes = None
-            if image_search_term:
+            diagram_bytes = None
+            if slide_data.get("model_diagram"):
+                from app.services.model_diagram_service import slide_model_diagram_png
+                diagram_bytes = slide_model_diagram_png(slide_data.get("model_diagram"), str(primary), str(accent), deck=prs)
+            if image_search_term and not diagram_bytes:
                 from app.services.image_service import fetch_stock_photo
                 photo_bytes = fetch_stock_photo(image_search_term)
 
@@ -261,7 +265,10 @@ def _build_km_module_deck(module, qualification_title, organization_name, brand_
             title_shape.text_frame.paragraphs[0].runs[0].font.bold = True
 
             content_width = prs.slide_width - Inches(1.0)
-            body_width = int(content_width * 0.55) if photo_bytes else content_width
+            if diagram_bytes:
+                body_width = int(content_width * 0.50)
+            else:
+                body_width = int(content_width * 0.55) if photo_bytes else content_width
 
             body = slide.placeholders[1]
             body.left = Inches(0.5)
@@ -276,13 +283,16 @@ def _build_km_module_deck(module, qualification_title, organization_name, brand_
                 p.text = bullet
                 p.font.size = Pt(bullet_font_size)
 
+            if diagram_bytes:
+                from app.services.model_diagram_service import add_fitted_picture
+                add_fitted_picture(slide, diagram_bytes, Inches(0.5) + body_width + Inches(0.3), Inches(2.0),
+                                   content_width - body_width - Inches(0.3), prs.slide_height - Inches(2.5))
             if photo_bytes:
                 image_left = Inches(0.5) + body_width + Inches(0.3)
                 image_width = content_width - body_width - Inches(0.3)
-                slide.shapes.add_picture(
-                    BytesIO(photo_bytes), image_left, Inches(2.0),
-                    width=image_width, height=prs.slide_height - Inches(2.5),
-                )
+                from app.services.model_diagram_service import add_cover_picture
+                add_cover_picture(slide, photo_bytes, image_left, Inches(2.0),
+                                  image_width, prs.slide_height - Inches(2.5))
 
             if speaker_notes:
                 slide.notes_slide.notes_text_frame.text = speaker_notes
