@@ -9,6 +9,40 @@ from app.models.user import User
 
 review_web_bp = Blueprint("review_web", __name__, url_prefix="/reviews")
 
+
+# Order in which a QA reviewer expects to see a full set: KM, then PM, then WM, then programme level.
+_DOC_ORDER = [
+    "qcto_knowledge_modules", "qcto_km_facilitator_guide", "qcto_km_powerpoint", "qcto_video_guide",
+    "qcto_km_learner_workbook", "qcto_km_poe", "qcto_km_poe_memo", "qcto_km_assessment",
+    "qcto_km_assessment_memo", "qcto_km_assessment_guide",
+    "qcto_practical_modules", "qcto_pm_facilitator_guide", "qcto_pm_powerpoint", "qcto_pm_poe",
+    "qcto_pm_assessment", "qcto_pm_assessment_memo", "qcto_pm_assessment_guide",
+    "qcto_workplace_modules", "qcto_wm_supervisor_guide", "qcto_workplace_logbook", "qcto_wm_statement_of_work",
+    "qcto_isa", "qcto_final_exam", "qcto_fisa", "qcto_learning_matrix", "qcto_reference_documents",
+]
+
+
+def _doc_order(subtype):
+    try:
+        return _DOC_ORDER.index(subtype)
+    except ValueError:
+        return len(_DOC_ORDER)
+
+
+def _download_name(subtype, title, stored_path):
+    """Readable file name for the browser's Save dialog, e.g. 'KM Learner Guide - HS Practitioner.docx'.
+    The stored object key is untouched; only the suggested download name changes."""
+    import re
+    from app.services.seta_constants import document_display_name
+    ext = ""
+    if stored_path and "." in stored_path.rsplit("/", 1)[-1]:
+        ext = "." + stored_path.rsplit(".", 1)[-1].lower()
+    label = document_display_name(subtype) or "Document"
+    name = f"{label} - {title}" if title else label
+    name = re.sub(r'[\\/:*?"<>|]+', "-", name).encode("ascii", "ignore").decode()
+    name = re.sub(r"\s+", " ", name).strip(" .-")
+    return (name or "Document") + ext
+
 @review_web_bp.route("/")
 @login_required
 def list_reviews():
@@ -82,12 +116,19 @@ def review_detail(review_id):
         material_url = None
         package_documents = []
         for j in (package.jobs if package else []):
-            url = get_presigned_url(j.result_file_path, expires_in=600) if j.result_file_path else None
+            url = get_presigned_url(
+                j.result_file_path, expires_in=600,
+                download_filename=_download_name(j.document_subtype, syllabus.title if syllabus else "", j.result_file_path),
+            ) if j.result_file_path else None
             package_documents.append({"job": j, "url": url})
+        package_documents.sort(key=lambda d: _doc_order(d["job"].document_subtype))
     else:
         job = GenerationJob.query.get(review.generation_job_id)
         syllabus = Syllabus.query.get(job.syllabus_id) if job else None
-        material_url = get_presigned_url(job.result_file_path, expires_in=600) if job and job.result_file_path else None
+        material_url = get_presigned_url(
+            job.result_file_path, expires_in=600,
+            download_filename=_download_name(getattr(job, "document_subtype", None) or job.material_type, syllabus.title if syllabus else "", job.result_file_path),
+        ) if job and job.result_file_path else None
         package_documents = None
 
     return render_template(

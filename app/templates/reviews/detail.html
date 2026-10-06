@@ -9,7 +9,7 @@
     <div class="flex justify-between items-start">
         <div>
             <h1 class="text-xl font-semibold text-navy-950">{{ syllabus.title if syllabus else 'Material Review' }}</h1>
-            <p class="text-steel-500 text-sm mt-1 capitalize">{{ job.material_type if job else '' }} — submitted by {{ submitter.email if submitter else '' }}</p>
+            <p class="text-steel-500 text-sm mt-1 capitalize">{{ (job.material_type | document_display_name) if job else '' }} — submitted by {{ submitter.email if submitter else '' }}</p>
         </div>
         <div>
             {% if review.status == 'approved' %}
@@ -28,7 +28,7 @@
         <div class="space-y-2">
             {% for doc in package_documents %}
             <div class="flex justify-between items-center px-4 py-2.5 bg-steel-50 border border-steel-200 rounded">
-                <span class="text-sm text-navy-950 font-medium capitalize">{{ doc.job.document_subtype.replace('_', ' ') }}</span>
+                <span class="text-sm text-navy-950 font-medium">{{ doc.job.document_subtype | document_display_name }}</span>
                 {% if doc.url %}
                 <a href="{{ doc.url }}" target="_blank" class="text-signal text-sm font-medium hover:underline">View / Download</a>
                 {% else %}
